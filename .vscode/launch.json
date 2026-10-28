@@ -9,10 +9,12 @@
       "program": "${workspaceFolder}/S-learn-project-/backend/src/server.js",
       "envFile": "${workspaceFolder}/S-learn-project-/backend/.env",
       "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"]
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
     },
     {
-     "name": "C/C++ Runner: Debug Session",
+      "name": "C/C++ Runner: Debug Session",
       "type": "cppdbg",
       "request": "launch",
       "args": [],
