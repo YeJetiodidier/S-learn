@@ -1,0 +1,169 @@
+/* Premium Exam UI Styling */
+/* Dark theme base */
+:root {
+    --bg-color: #0a0a0a;
+    --card-bg: rgba(255, 255, 255, 0.08);
+    --primary-color: #00bcd4;
+    /* teal accent */
+    --secondary-color: #ff4081;
+    /* pink accent */
+    --text-color: #e0e0e0;
+    --border-radius: 12px;
+    --transition-speed: 0.3s;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: 'Inter', sans-serif;
+}
+
+.exam-setup,
+.exam-run,
+.exam-result {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    border-radius: var(--border-radius);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    animation: fadeIn 0.6s ease-out;
+}
+
+.exam-title {
+    font-size: 2rem;
+    margin-bottom: 1.5rem;
+    text-align: center;
+    color: var(--primary-color);
+}
+
+.exam-form .exam-label {
+    display: block;
+    margin-bottom: 1rem;
+    font-weight: 500;
+}
+
+.exam-input,
+.exam-select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    margin-top: 0.5rem;
+    border: none;
+    border-radius: var(--border-radius);
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text-color);
+    font-size: 1rem;
+    backdrop-filter: blur(4px);
+    transition: background var(--transition-speed), transform var(--transition-speed);
+}
+
+.exam-input:focus,
+.exam-select:focus {
+    outline: none;
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.02);
+}
+
+.primary-btn,
+.secondary-btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: var(--border-radius);
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background var(--transition-speed), transform var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+.primary-btn {
+    background: var(--primary-color);
+    color: #fff;
+}
+
+.secondary-btn {
+    background: var(--secondary-color);
+    color: #fff;
+    margin-left: 0.5rem;
+}
+
+.primary-btn:hover,
+.secondary-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Exam Run specific */
+.exam-run p strong {
+    color: var(--primary-color);
+}
+
+.exam-run label {
+    margin-bottom: 0.5rem;
+}
+
+.exam-run input[type="radio"] {
+    margin-right: 0.5rem;
+}
+
+.exam-result h2 {
+    color: var(--primary-color);
+}
+
+.exam-result p {
+    font-size: 1.2rem;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── DEVICE RESPONSIVENESS ── */
+@media (max-width: 1024px) {
+    .exam-setup,
+    .exam-run,
+    .exam-result {
+        margin: 1.5rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .exam-setup,
+    .exam-run,
+    .exam-result {
+        margin: 1rem;
+        padding: 1.5rem;
+    }
+
+    .exam-title {
+        font-size: 1.7rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .exam-setup,
+    .exam-run,
+    .exam-result {
+        margin: 0.5rem;
+        padding: 1rem;
+    }
+
+    .exam-title {
+        font-size: 1.4rem;
+        margin-bottom: 1rem;
+    }
+
+    .primary-btn,
+    .secondary-btn {
+        width: 100%;
+        margin-left: 0;
+        margin-bottom: 0.5rem;
+    }
+}

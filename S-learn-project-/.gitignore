@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.local
+
+# Build output
+dist/
+build/
+
+# Media is stored in Vercel Blob, not in Git
+/documents/videos/
+
+# Local password-reset integration test reads and prints database OTPs
+/backend/test_reset.js
+
+# Firebase
+.firebase/
+.firebaserc
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
