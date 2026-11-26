@@ -1,3 +1,5 @@
+const LOCAL_BACKEND_URL = "http://localhost:5000";
+
 export const isRemoteBackendUsable = (value) => {
   if (!value || typeof value !== "string") return false;
 
@@ -18,22 +20,41 @@ export const isRemoteBackendUsable = (value) => {
   }
 };
 
-export const getBackendUrl = () => {
-  const configured = (import.meta.env.VITE_BACKEND_URL || "").trim();
+const isLocalBackendUrl = (value) => {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase();
+    return ["localhost", "127.0.0.1", "::1"].includes(hostname);
+  } catch {
+    return false;
+  }
+};
 
+export const resolveBackendUrl = (value, { production = false } = {}) => {
+  const configured = typeof value === "string" ? value.trim() : "";
   if (!configured) {
-    return "http://localhost:5000";
+    return production ? null : LOCAL_BACKEND_URL;
   }
 
-  if (isRemoteBackendUsable(configured)) {
+  if (
+    isRemoteBackendUsable(configured) &&
+    (!production || !isLocalBackendUrl(configured))
+  ) {
     return configured.replace(/\/+$/, "");
   }
 
-  // Explicitly refuse to use known dead Render hosts. The app will continue with
-  // local API/past-paper generation instead of making a broken request.
-  if (/onrender\.com|render\.com/i.test(configured)) {
-    return "http://localhost:5000";
-  }
+  return production ? null : LOCAL_BACKEND_URL;
+};
 
-  return configured.replace(/\/+$/, "");
+export const getBackendUrl = () =>
+  resolveBackendUrl(import.meta.env?.VITE_BACKEND_URL, {
+    production: Boolean(import.meta.env?.PROD),
+  });
+
+export const requireBackendUrl = (url = getBackendUrl()) => {
+  if (!url) {
+    throw new Error(
+      "The study content service is not configured for this deployment. Set VITE_BACKEND_URL to your deployed backend URL in Vercel, then redeploy the frontend.",
+    );
+  }
+  return url;
 };

@@ -8,7 +8,8 @@
     "db:migrate": "node scripts/run_migrations.js",
     "db:import:firestore": "node scripts/migrate_firestore_to_neon.js",
     "db:import:legacy-postgres": "node scripts/migrate_legacy_postgres.js",
-    "db:import:files": "node scripts/migrate_documents_to_blob.js"
+    "db:import:files": "node scripts/migrate_documents_to_blob.js",
+    "db:replace:papers": "node scripts/replace_papers_from_documents.js"
   },
   "keywords": [],
   "author": "",

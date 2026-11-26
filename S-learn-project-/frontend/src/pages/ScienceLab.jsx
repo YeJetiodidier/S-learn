@@ -1,5 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+import StatusBanner from "../components/StatusBanner";
+import { getFriendlyErrorMessage } from "../utils/friendlyError";
 import {
   getVideos,
   addVideo,
@@ -14,6 +17,7 @@ import "../dashboard.css";
 import "../App.css";
 
 function ScienceLab() {
+  const [searchParams] = useSearchParams();
   const [videos, setVideos] = useState([]);
   const [pendingVideos, setPendingVideos] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -26,10 +30,16 @@ function ScienceLab() {
     video_url: "",
   });
   const [videoFile, setVideoFile] = useState(null);
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter] = useState(() => searchParams.get("subject") || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [feedback, setFeedback] = useState(null);
+  const [modalError, setModalError] = useState("");
 
   const fetchVideos = async () => {
+    setIsLoading(true);
+    setLoadError("");
     try {
       const data = await getVideos();
       setVideos(Array.isArray(data) ? data : []);
@@ -50,6 +60,11 @@ function ScienceLab() {
       }
     } catch (err) {
       console.error("Could not load videos:", err);
+      setLoadError(
+        getFriendlyErrorMessage(err, "We couldn't load the Science Lab videos right now. Please try again."),
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -58,57 +73,73 @@ function ScienceLab() {
   }, []);
 
   const handleAddVideo = async () => {
-    if (!newVideo.title || (!newVideo.video_url && !videoFile)) {
-      return alert("Please fill in at least a Title and a Video URL or file!");
+    setModalError("");
+    if (!newVideo.title.trim() || (!newVideo.video_url.trim() && !videoFile)) {
+      setModalError("Please enter a video title and provide either a video link or file.");
+      return;
     }
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      let url = newVideo.video_url;
+      let url = newVideo.video_url.trim();
       if (videoFile) {
         url = await uploadVideoFile(videoFile);
       }
       await addVideo({
-        title: newVideo.title,
-        subject: newVideo.subject,
-        description: newVideo.description,
+        title: newVideo.title.trim(),
+        subject: newVideo.subject.trim(),
+        description: newVideo.description.trim(),
         video_url: url,
         status: isAdmin ? "approved" : "pending",
       });
-      alert(
-        isAdmin
+      setFeedback({
+        type: "success",
+        message: isAdmin
           ? "Video added successfully!"
           : "Video submitted! It will appear once approved by an Admin.",
-      );
+      });
       await fetchVideos();
       setIsModalOpen(false);
       setNewVideo({ title: "", subject: "", description: "", video_url: "" });
       setVideoFile(null);
     } catch (err) {
-      alert("Upload failed: " + (err?.message || err));
+      setModalError(
+        getFriendlyErrorMessage(err, "We couldn't upload your video right now. Please try again."),
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleApproveVideo = async (id) => {
+    setFeedback(null);
     try {
-      const result = await approveVideo(id, getCurrentUser()?.uid);
-      alert(result?.alreadyApproved ? "This video was already approved." : "Video approved!");
+      const result = await approveVideo(id);
+      setFeedback({
+        type: "success",
+        message: result?.alreadyApproved ? "This video was already approved." : "Video approved and published!",
+      });
       await fetchVideos();
     } catch (err) {
-      alert("Approval failed: " + err.message);
+      setFeedback({
+        type: "error",
+        message: getFriendlyErrorMessage(err, "We couldn't approve this video right now. Please try again."),
+      });
     }
   };
 
   const handleRejectVideo = async (id) => {
     if (!confirm("Are you sure you want to reject/delete this video?")) return;
+    setFeedback(null);
     try {
       await deleteVideo(id);
-      alert("Video deleted.");
+      setFeedback({ type: "success", message: "Video removed." });
       await fetchVideos();
     } catch (err) {
-      alert("Failed to delete video: " + err.message);
+      setFeedback({
+        type: "error",
+        message: getFriendlyErrorMessage(err, "We couldn't remove this video right now. Please try again."),
+      });
     }
   };
 
@@ -121,6 +152,20 @@ function ScienceLab() {
     if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
     return url; // Return as-is for direct video file URLs
   };
+
+  const dynamicSubjects = useMemo(() => {
+    const subjects = [
+      ...new Set(
+        videos
+          .map((v) => String(v.subject || "").trim())
+          .filter(Boolean),
+      ),
+    ].sort((a, b) => a.localeCompare(b));
+    if (filter && !subjects.some((s) => s.toLowerCase() === filter.toLowerCase())) {
+      subjects.push(filter);
+    }
+    return ["", ...subjects];
+  }, [videos, filter]);
 
   const filtered = filter
     ? videos.filter((v) =>
@@ -145,11 +190,20 @@ function ScienceLab() {
           </div>
           <button
             className="ss-action-btn sl-upload-btn"
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => {
+              setModalError("");
+              setIsModalOpen(true);
+            }}
           >
             + Upload Video
           </button>
         </section>
+
+        <StatusBanner
+          type={feedback?.type}
+          message={feedback?.message}
+          onDismiss={() => setFeedback(null)}
+        />
 
         {/* ADMIN TAB OPTIONS */}
         {isAdmin && (
@@ -193,9 +247,9 @@ function ScienceLab() {
             <div className="sl-filter-bar">
               <span className="sl-filter-label">Filter by subject</span>
               <div className="sl-filter-chips">
-                {["", "Chemistry", "Physics", "Biology"].map((s) => (
+                {dynamicSubjects.map((s) => (
                   <button
-                    key={s}
+                    key={s || "all"}
                     className={`sl-chip ${filter === s ? "active" : ""}`}
                     onClick={() => setFilter(s)}
                   >
@@ -206,7 +260,19 @@ function ScienceLab() {
             </div>
 
             {/* VIDEO GRID */}
-            {filtered.length === 0 ? (
+            {isLoading ? (
+              <div className="sl-empty" role="status">
+                <h3>Loading videos…</h3>
+              </div>
+            ) : loadError ? (
+              <div className="sl-empty" role="alert">
+                <h3>Unable to load videos</h3>
+                <p>{loadError}</p>
+                <button type="button" onClick={fetchVideos}>
+                  Try again
+                </button>
+              </div>
+            ) : filtered.length === 0 ? (
               <div className="sl-empty">
                 <span className="sl-empty-icon">🎬</span>
                 <h3>No videos yet!</h3>
@@ -376,6 +442,7 @@ function ScienceLab() {
           <div className="ss-modal">
             <h2>Upload Practical Video</h2>
             <p style={{color: "#334155"}}>Add a new lab video — YouTube links and direct video URLs are both supported.</p>
+            <StatusBanner type="error" message={modalError} onDismiss={() => setModalError("")} />
             <div className="ss-modal-grid">
               <input type="text" placeholder="Video Title *" value={newVideo.title} onChange={e => setNewVideo({...newVideo, title: e.target.value})} />
               <input type="text" placeholder="Subject (e.g. Chemistry)" value={newVideo.subject} onChange={e => setNewVideo({...newVideo, subject: e.target.value})} />

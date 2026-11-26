@@ -45,18 +45,31 @@ const ExamRun = () => {
         // Score locally: each question carries its correct `answer`.
         const total = normalizedQuestions.length;
         let score = 0;
-        normalizedQuestions.forEach((q, i) => {
-            if (answers[i] && answers[i].answer === q.answer) score++;
+        const review = normalizedQuestions.map((q, i) => {
+            const selected = answers[i]?.answer || "";
+            const isCorrect = selected === q.answer;
+            if (isCorrect) score++;
+            return {
+                id: q.id,
+                question_text: q.question_text,
+                selected,
+                correctAnswer: q.answer,
+                isCorrect,
+            };
         });
+        let progressNotice = "";
         if (subject && topic) {
             try {
                 await recordExamProgress({ subject, topic, score, total });
             } catch (error) {
                 console.error("Could not save study progress:", error);
-                alert("Your result is ready, but study progress could not be saved.");
+                progressNotice =
+                    "Your score is ready, though we couldn't save your study progress right now.";
             }
         }
-        navigate("/exam/result", { state: { result: { score, total } } });
+        navigate("/exam/result", {
+            state: { result: { score, total, subject, topic, review, progressNotice } },
+        });
     };
 
     if (!normalizedQuestions.length) return <p>No exam data.</p>;

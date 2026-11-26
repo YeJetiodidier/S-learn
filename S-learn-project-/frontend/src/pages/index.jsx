@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { loginUser, loginWithGoogle, loginWithFacebook, mapAuthError } from "../firebase/authService";
+import { loginUser, loginWithGoogle, loginWithFacebook, mapAuthError, watchSocialRedirect } from "../firebase/authService";
 import "../auth.css";
 
 function Login() {
@@ -13,6 +13,8 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => watchSocialRedirect(() => navigate("/loading"), (err) => setError(mapAuthError(err))), [navigate]);
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setError("");
@@ -21,8 +23,8 @@ function Login() {
   const handleGoogleSignIn = async () => {
     setError("");
     try {
-      await loginWithGoogle();
-      navigate("/loading");
+      const user = await loginWithGoogle();
+      if (user) navigate("/loading");
     } catch (err) {
       setError(mapAuthError(err));
     }
@@ -31,8 +33,8 @@ function Login() {
   const handleFacebookSignIn = async () => {
     setError("");
     try {
-      await loginWithFacebook();
-      navigate("/loading");
+      const user = await loginWithFacebook();
+      if (user) navigate("/loading");
     } catch (err) {
       setError(mapAuthError(err));
     }

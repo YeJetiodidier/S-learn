@@ -95,12 +95,16 @@ const settingFields = {
   weeklyReport: "notif_weekly_report",
   notif_email_digest: "notif_email_digest",
   emailDigest: "notif_email_digest",
+  notif_platform_updates: "notif_platform_updates",
+  platformUpdates: "notif_platform_updates",
   privacy_profile_visible: "privacy_profile_visible",
   profileVisible: "privacy_profile_visible",
   privacy_activity_visible: "privacy_activity_visible",
   activityVisible: "privacy_activity_visible",
   privacy_share_stats: "privacy_share_stats",
   shareStats: "privacy_share_stats",
+  favorite_cards: "favorite_cards",
+  favoriteCards: "favorite_cards",
 };
 
 const profileProjection = `uid AS "uid", email, username, role, avatar_url, bio,
@@ -117,7 +121,14 @@ const saveSettings = async (uid, values) => {
   const updates = new Map();
   for (const [key, value] of Object.entries(values || {})) {
     const column = settingFields[key];
-    if (column) updates.set(column, value);
+    if (!column) continue;
+    if (column === "favorite_cards") {
+      if (Array.isArray(value)) {
+        updates.set(column, [...new Set(value.map((item) => String(item).trim()).filter(Boolean))]);
+      }
+      continue;
+    }
+    updates.set(column, value);
   }
 
   const fields = [...updates.keys()];
@@ -131,6 +142,25 @@ const saveSettings = async (uid, values) => {
     [uid, ...updates.values()],
   );
   return result.rows[0];
+};
+
+const createNotification = async ({
+  userId = null,
+  category = "platform",
+  title,
+  message,
+  link = "",
+  createdBy = null,
+}) => {
+  try {
+    await pool.query(
+      `INSERT INTO notifications (id, user_id, category, title, message, link, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [randomUUID(), userId, category, title, message, link, createdBy],
+    );
+  } catch (error) {
+    console.error("Failed to create notification:", error.message);
+  }
 };
 
 router.use(requireDatabase, requireFirebaseUser);
@@ -328,7 +358,20 @@ router.post("/papers", async (req, res, next) => {
         isAdmin && paper.status !== "pending" ? req.user.uid : null,
       ],
     );
-    res.status(201).json(result.rows[0]);
+    const created = result.rows[0];
+    if (created.status === "approved") {
+      const details = [created.paper_name, created.level, created.year].filter(Boolean).join(" • ");
+      await createNotification({
+        category: "paper",
+        title: `New paper added: ${created.subject || "Past Paper"}`,
+        message: details
+          ? `${details} is now available in Smart Subjects.`
+          : "A new past paper is now available in Smart Subjects.",
+        link: `/smartsubjects${created.subject ? `?subject=${encodeURIComponent(created.subject)}` : ""}`,
+        createdBy: req.user.uid,
+      });
+    }
+    res.status(201).json(created);
   } catch (error) {
     next(error);
   }
@@ -346,7 +389,28 @@ router.patch("/papers/:id/approve", requireAdmin, async (req, res, next) => {
        WHERE id = $1 RETURNING ${paperProjection}`,
       [req.params.id, req.user.uid],
     );
-    res.json({ ...result.rows[0], alreadyApproved: false });
+    const approved = result.rows[0];
+    const details = [approved.paper_name, approved.level, approved.year].filter(Boolean).join(" • ");
+    await createNotification({
+      category: "paper",
+      title: `New paper available: ${approved.subject || "Past Paper"}`,
+      message: details
+        ? `${details} was approved and added to Smart Subjects.`
+        : "A newly approved past paper is now available in Smart Subjects.",
+      link: `/smartsubjects${approved.subject ? `?subject=${encodeURIComponent(approved.subject)}` : ""}`,
+      createdBy: req.user.uid,
+    });
+    if (approved.submittedBy && approved.submittedBy !== req.user.uid) {
+      await createNotification({
+        userId: approved.submittedBy,
+        category: "paper",
+        title: "Your paper submission was approved",
+        message: `${approved.subject || "Your paper"}${approved.paper_name ? ` — ${approved.paper_name}` : ""} is now live in Smart Subjects.`,
+        link: `/smartsubjects${approved.subject ? `?subject=${encodeURIComponent(approved.subject)}` : ""}`,
+        createdBy: req.user.uid,
+      });
+    }
+    res.json({ ...approved, alreadyApproved: false });
   } catch (error) {
     next(error);
   }
@@ -410,7 +474,19 @@ router.post("/videos", async (req, res, next) => {
         status === "approved" ? req.user.uid : null,
       ],
     );
-    res.status(201).json(result.rows[0]);
+    const created = result.rows[0];
+    if (created.status === "approved") {
+      await createNotification({
+        category: "video",
+        title: `New lab video: ${created.title || "Practical Video"}`,
+        message: created.subject
+          ? `A new ${created.subject} video is now available in Science Lab.`
+          : "A new practical demonstration video is now available in Science Lab.",
+        link: `/sciencelab${created.subject ? `?subject=${encodeURIComponent(created.subject)}` : ""}`,
+        createdBy: req.user.uid,
+      });
+    }
+    res.status(201).json(created);
   } catch (error) {
     next(error);
   }
@@ -428,7 +504,27 @@ router.patch("/videos/:id/approve", requireAdmin, async (req, res, next) => {
        WHERE id = $1 RETURNING ${videoProjection}`,
       [req.params.id, req.user.uid],
     );
-    res.json({ ...result.rows[0], alreadyApproved: false });
+    const approved = result.rows[0];
+    await createNotification({
+      category: "video",
+      title: `New lab video: ${approved.title || "Practical Video"}`,
+      message: approved.subject
+        ? `A new ${approved.subject} video is now available in Science Lab.`
+        : "A new practical video is now available in Science Lab.",
+      link: `/sciencelab${approved.subject ? `?subject=${encodeURIComponent(approved.subject)}` : ""}`,
+      createdBy: req.user.uid,
+    });
+    if (approved.submittedBy && approved.submittedBy !== req.user.uid) {
+      await createNotification({
+        userId: approved.submittedBy,
+        category: "video",
+        title: "Your video submission was approved",
+        message: `"${approved.title || "Your video"}" is now live in Science Lab.`,
+        link: `/sciencelab${approved.subject ? `?subject=${encodeURIComponent(approved.subject)}` : ""}`,
+        createdBy: req.user.uid,
+      });
+    }
+    res.json({ ...approved, alreadyApproved: false });
   } catch (error) {
     next(error);
   }
@@ -444,12 +540,245 @@ router.delete("/videos/:id", requireAdmin, async (req, res, next) => {
   }
 });
 
+router.get("/notifications", async (req, res, next) => {
+  try {
+    const settingsRes = await pool.query(
+      `INSERT INTO user_settings (user_id) VALUES ($1)
+       ON CONFLICT (user_id) DO UPDATE SET updated_at = user_settings.updated_at
+       RETURNING notif_schedule_reminders, notif_new_papers, notif_video_uploads, notif_platform_updates`,
+      [req.user.uid],
+    );
+    const prefs = settingsRes.rows[0] || {};
+    const enabledCategories = [];
+    if (prefs.notif_new_papers !== false) enabledCategories.push("paper");
+    if (prefs.notif_video_uploads === true) enabledCategories.push("video");
+    if (prefs.notif_platform_updates !== false) enabledCategories.push("platform");
+    if (prefs.notif_schedule_reminders !== false) enabledCategories.push("schedule");
+
+    let items = [];
+    if (enabledCategories.length > 0) {
+      const notifRes = await pool.query(
+        `SELECT n.id, n.category, n.title, n.message, n.link,
+           n.created_at AS "createdAt",
+           (r.notification_id IS NOT NULL) AS "isRead"
+         FROM notifications n
+         LEFT JOIN notification_reads r
+           ON r.notification_id = n.id AND r.user_id = $1
+         WHERE (n.user_id IS NULL OR n.user_id = $1)
+           AND n.category = ANY($2::text[])
+         ORDER BY n.created_at DESC
+         LIMIT 40`,
+        [req.user.uid, enabledCategories],
+      );
+      items = notifRes.rows;
+    }
+
+    // If no stored paper notifications exist yet and the user wants paper updates,
+    // surface the latest approved papers so users immediately see recent paper updates.
+    const hasPaperNotification = items.some((item) => item.category === "paper");
+    if (!hasPaperNotification && prefs.notif_new_papers !== false) {
+      const recentPapers = await pool.query(
+        `SELECT id, subject, paper_name, level, year, COALESCE(approved_at, created_at) AS "createdAt"
+         FROM papers WHERE status = 'approved'
+         ORDER BY COALESCE(approved_at, created_at) DESC
+         LIMIT 5`,
+      );
+      for (const paper of recentPapers.rows) {
+        const details = [paper.paper_name, paper.level, paper.year].filter(Boolean).join(" • ");
+        items.push({
+          id: `paper-feed-${paper.id}`,
+          category: "paper",
+          title: `Paper available: ${paper.subject || "Past Paper"}`,
+          message: details
+            ? `${details} is ready to view or download.`
+            : "Available now in Smart Subjects.",
+          link: `/smartsubjects${paper.subject ? `?subject=${encodeURIComponent(paper.subject)}` : ""}`,
+          createdAt: paper.createdAt,
+          isRead: true,
+          synthetic: true,
+        });
+      }
+      items.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    }
+
+    const unreadCount = items.filter((item) => !item.isRead).length;
+    res.json({ items, unreadCount });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/notifications/broadcast", requireAdmin, async (req, res, next) => {
+  const { category = "platform", title, message, link = "" } = req.body || {};
+  const normalizedTitle = typeof title === "string" ? title.trim() : "";
+  const normalizedMessage = typeof message === "string" ? message.trim() : "";
+  const allowedCategory = ["platform", "paper", "video"].includes(category) ? category : "platform";
+  if (!normalizedTitle || !normalizedMessage) {
+    return res.status(400).json({ error: "Please enter both a title and a message for the update." });
+  }
+  try {
+    const id = randomUUID();
+    const result = await pool.query(
+      `INSERT INTO notifications (id, user_id, category, title, message, link, created_by)
+       VALUES ($1, NULL, $2, $3, $4, $5, $6)
+       RETURNING id, category, title, message, link, created_at AS "createdAt"`,
+      [id, allowedCategory, normalizedTitle, normalizedMessage, String(link || "").trim(), req.user.uid],
+    );
+    res.status(201).json({ ...result.rows[0], isRead: false });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch("/notifications/:id/read", async (req, res, next) => {
+  const id = String(req.params.id || "");
+  if (!id || id.startsWith("paper-feed-")) {
+    return res.json({ id, isRead: true });
+  }
+  try {
+    const existing = await pool.query(
+      "SELECT id FROM notifications WHERE id = $1 AND (user_id IS NULL OR user_id = $2)",
+      [id, req.user.uid],
+    );
+    if (!existing.rowCount) {
+      return res.status(404).json({ error: "Notification not found." });
+    }
+    await pool.query(
+      `INSERT INTO notification_reads (user_id, notification_id)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id, notification_id) DO NOTHING`,
+      [req.user.uid, id],
+    );
+    res.json({ id, isRead: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/notifications/read-all", async (req, res, next) => {
+  try {
+    await pool.query(
+      `INSERT INTO notification_reads (user_id, notification_id)
+       SELECT $1, n.id
+       FROM notifications n
+       WHERE n.user_id IS NULL OR n.user_id = $1
+       ON CONFLICT (user_id, notification_id) DO NOTHING`,
+      [req.user.uid],
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/schedule/:uid", requireOwnUid, async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, subject, day, time, done,
+         created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM schedule_items WHERE user_id = $1
+       ORDER BY created_at ASC`,
+      [req.user.uid],
+    );
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/schedule", async (req, res, next) => {
+  const { subject, day, time, done } = req.body || {};
+  const normalizedSubject = typeof subject === "string" ? subject.trim() : "";
+  const normalizedDay = typeof day === "string" ? day.trim() : "";
+  const normalizedTime = typeof time === "string" ? time.trim() : "";
+  if (!normalizedSubject || !normalizedDay || !normalizedTime) {
+    return res.status(400).json({ error: "subject, day, and time are required." });
+  }
+  try {
+    const result = await pool.query(
+      `INSERT INTO schedule_items (id, user_id, subject, day, time, done)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, subject, day, time, done,
+         created_at AS "createdAt", updated_at AS "updatedAt"`,
+      [randomUUID(), req.user.uid, normalizedSubject, normalizedDay, normalizedTime, Boolean(done)],
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch("/schedule/:id", async (req, res, next) => {
+  const { subject, day, time, done } = req.body || {};
+  try {
+    const result = await pool.query(
+      `UPDATE schedule_items SET
+         subject = COALESCE($3, subject),
+         day = COALESCE($4, day),
+         time = COALESCE($5, time),
+         done = COALESCE($6, done),
+         updated_at = NOW()
+       WHERE id = $1 AND user_id = $2
+       RETURNING id, subject, day, time, done,
+         created_at AS "createdAt", updated_at AS "updatedAt"`,
+      [
+        req.params.id,
+        req.user.uid,
+        typeof subject === "string" ? subject.trim() : null,
+        typeof day === "string" ? day.trim() : null,
+        typeof time === "string" ? time.trim() : null,
+        typeof done === "boolean" ? done : null,
+      ],
+    );
+    if (!result.rowCount) return res.status(404).json({ error: "Schedule item not found." });
+    res.json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/schedule/:id", async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      "DELETE FROM schedule_items WHERE id = $1 AND user_id = $2",
+      [req.params.id, req.user.uid],
+    );
+    if (!result.rowCount) return res.status(404).json({ error: "Schedule item not found." });
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/questions/subjects", async (_req, res, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT TRIM(subject) AS subject FROM (
+         SELECT subject FROM questions
+         UNION
+         SELECT subject FROM papers WHERE status = 'approved'
+       ) combined
+       WHERE TRIM(COALESCE(subject, '')) <> ''
+       ORDER BY subject`,
+    );
+    res.json(result.rows.map((row) => row.subject));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/questions/topics", async (req, res, next) => {
-  const subject = String(req.query.subject || "");
+  const subject = String(req.query.subject || "").trim();
   if (!subject) return res.status(400).json({ error: "subject is required." });
   try {
     const result = await pool.query(
-      "SELECT DISTINCT topic FROM questions WHERE subject = $1 ORDER BY topic",
+      `SELECT DISTINCT TRIM(topic) AS topic FROM (
+         SELECT topic FROM questions WHERE LOWER(subject) = LOWER($1)
+         UNION
+         SELECT paper_name AS topic FROM papers WHERE status = 'approved' AND LOWER(subject) = LOWER($1)
+       ) combined
+       WHERE TRIM(COALESCE(topic, '')) <> ''
+       ORDER BY topic`,
       [subject],
     );
     res.json(result.rows.map((row) => row.topic));
@@ -468,7 +797,7 @@ router.get("/questions", async (req, res, next) => {
     const result = await pool.query(
       `SELECT id, subject, topic, question_text, options, answer,
         created_at AS "createdAt"
-       FROM questions WHERE subject = $1 AND topic = $2
+       FROM questions WHERE LOWER(subject) = LOWER($1) AND LOWER(topic) = LOWER($2)
        ORDER BY random() LIMIT $3`,
       [subject, topic, count],
     );

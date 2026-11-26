@@ -1,13 +1,25 @@
 import "./exam.css";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import StatusBanner from "../components/StatusBanner";
+import { getFriendlyErrorMessage } from "../utils/friendlyError";
 import {
+  getSubjects,
   getTopics,
   getQuestions,
   getPapers,
   generateSmartExamFromPapers,
 } from "../firebase/dataService";
 import { backendRequest } from "../firebase/apiClient";
+
+const shuffleOptions = (options) => {
+  const copy = [...options];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+};
 
 // Subject-specific fallback built from the actual past-paper metadata.
 const generateFallback = (subject, topic, count, papers = []) => {
@@ -46,24 +58,52 @@ const generateFallback = (subject, topic, count, papers = []) => {
     const concept = concepts[i % concepts.length] || topic || subject;
     const template = templates[i % templates.length];
     const question_text = template(concept);
-    const options = [
+    const rawOptions = [
       `A correct application of ${concept} in ${subject} and ${topic}.`,
       `An unrelated statement that does not use ${concept}.`,
       `A claim that contradicts the learned ${topic} pattern.`,
       `A statement that ignores the ${subject} concept of ${concept}.`,
     ];
-    out.push({ id: `paper-${i}`, question_text, options, answer: options[0] });
+    const answer = rawOptions[0];
+    out.push({ id: `paper-${i}`, question_text, options: shuffleOptions(rawOptions), answer });
   }
   return out;
 };
 
 const ExamSetup = () => {
     const navigate = useNavigate();
-    const [subject, setSubject] = useState("");
+    const location = useLocation();
+    const initialSubject = location.state?.subject || "";
+    const initialTopic = location.state?.topic || "";
+    const [subjects, setSubjects] = useState([]);
+    const [subject, setSubject] = useState(initialSubject);
     const [topics, setTopics] = useState([]);
-    const [topic, setTopic] = useState("");
+    const [topic, setTopic] = useState(initialTopic);
     const [count, setCount] = useState(10);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const [generating, setGenerating] = useState(false);
+
+    // Load available subjects dynamically from Postgres questions & approved papers
+    useEffect(() => {
+        let active = true;
+        getSubjects()
+            .then((data) => {
+                if (active && Array.isArray(data)) setSubjects(data);
+            })
+            .catch(() => {
+                getPapers()
+                    .then((papers) => {
+                        if (!active || !Array.isArray(papers)) return;
+                        const unique = [...new Set(papers.map((p) => p.subject).filter(Boolean))].sort();
+                        setSubjects(unique);
+                    })
+                    .catch((err) => console.error("Failed to load subjects:", err));
+            });
+        return () => {
+            active = false;
+        };
+    }, []);
 
     // Load topics when a subject is entered
     useEffect(() => {
@@ -132,19 +172,30 @@ const ExamSetup = () => {
 
     const handleStart = async (e) => {
         e.preventDefault();
-        if (!subject || !topic || !count) return;
+        if (!subject || !topic || !count || generating) return;
+        setError("");
+        setGenerating(true);
         try {
             const questions = await buildExam(subject, topic, count);
             navigate("/exam/run", { state: { questions, subject, topic } });
         } catch (err) {
             console.error(err);
-            alert("Error generating exam");
+            setError(
+                getFriendlyErrorMessage(
+                    err,
+                    "We couldn't generate your practice exam right now. Please try again.",
+                ),
+            );
+        } finally {
+            setGenerating(false);
         }
     };
 
     // Generate a paper-aware exam using the selected topic and the learner's past-paper history.
     const handleAIGenerate = async () => {
-        if (!subject || !count) return;
+        if (!subject || !count || generating) return;
+        setError("");
+        setGenerating(true);
         try {
             const questions = await buildExam(subject, topic || "General", count);
             navigate("/exam/run", {
@@ -152,19 +203,29 @@ const ExamSetup = () => {
             });
         } catch (err) {
             console.error(err);
-            alert("Error generating exam from past papers");
+            setError(
+                getFriendlyErrorMessage(
+                    err,
+                    "We couldn't generate an exam from past papers right now. Please try again.",
+                ),
+            );
+        } finally {
+            setGenerating(false);
         }
     };
 
     return (
         <div className="exam-setup">
             <h2 className="exam-title">Start Exam</h2>
+            <StatusBanner type="error" message={error} onDismiss={() => setError("")} />
             <form onSubmit={handleStart} className="exam-form">
                 <label className="exam-label">
                     Subject
                     <input
                         type="text"
+                        list="subjects-list"
                         value={subject}
+                        placeholder="Enter or select a subject"
                         onChange={(e) => {
                             const nextSubject = e.target.value;
                             setSubject(nextSubject);
@@ -175,6 +236,11 @@ const ExamSetup = () => {
                         required
                         className="exam-input"
                     />
+                    <datalist id="subjects-list">
+                        {subjects.map((s) => (
+                            <option key={s} value={s} />
+                        ))}
+                    </datalist>
                 </label>
                 <label className="exam-label">
                     Topic
@@ -207,10 +273,10 @@ const ExamSetup = () => {
                     />
                 </label>
                 <div className="exam-actions">
-                    <button type="submit" className="primary-btn">
-                        Start Exam
+                    <button type="submit" className="primary-btn" disabled={generating}>
+                        {generating ? "Generating..." : "Start Exam"}
                     </button>
-                    <button type="button" className="secondary-btn" onClick={handleAIGenerate}>
+                    <button type="button" className="secondary-btn" onClick={handleAIGenerate} disabled={generating}>
                         Generate from Past Papers
                     </button>
                 </div>

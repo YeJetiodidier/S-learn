@@ -1,4 +1,5 @@
-import { getBackendUrl } from "../utils/backendConfig";
+import { getBackendUrl, requireBackendUrl } from "../utils/backendConfig";
+import { getFriendlyErrorMessage } from "../utils/friendlyError";
 import { auth } from "./config";
 
 const BACKEND_URL = getBackendUrl();
@@ -10,22 +11,28 @@ const requestJson = async (url, { method = "GET", body } = {}) => {
   const idToken = await user.getIdToken();
   const retrySafeRequest = method.toUpperCase() === "GET";
   let response;
-  for (let attempt = 0; ; attempt++) {
-    response = await fetch(url, {
-      method,
-      headers: {
-        Authorization: `Bearer ${idToken}`,
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
+  try {
+    for (let attempt = 0; ; attempt++) {
+      response = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
 
-    if (response.status !== 503 || !retrySafeRequest || attempt >= 1) break;
-    const retryAfter = Number(response.headers.get("Retry-After"));
-    const delay = Number.isFinite(retryAfter) && retryAfter > 0
-      ? Math.min(retryAfter, 5) * 1000
-      : 1000;
-    await new Promise((resolve) => setTimeout(resolve, delay));
+      if (response.status !== 503 || !retrySafeRequest || attempt >= 1) break;
+      const retryAfter = Number(response.headers.get("Retry-After"));
+      const delay = Number.isFinite(retryAfter) && retryAfter > 0
+        ? Math.min(retryAfter, 5) * 1000
+        : 1000;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  } catch (networkError) {
+    const err = new Error(getFriendlyErrorMessage(networkError));
+    err.cause = networkError;
+    throw err;
   }
 
   if (response.status === 204) return null;
@@ -36,17 +43,24 @@ const requestJson = async (url, { method = "GET", body } = {}) => {
     try {
       payload = JSON.parse(responseText);
     } catch {
-      payload = { error: responseText };
+      payload = {};
     }
   }
   if (!response.ok) {
-    throw new Error(payload.error || `Request failed (${response.status}).`);
+    const err = new Error(
+      getFriendlyErrorMessage(
+        { status: response.status, message: payload.error || "" },
+        "We couldn't complete that request. Please try again.",
+      ),
+    );
+    err.status = response.status;
+    throw err;
   }
   return payload;
 };
 
 export const apiRequest = (path, options) =>
-  requestJson(`${BACKEND_URL}/api/data${path}`, options);
+  requestJson(`${requireBackendUrl(BACKEND_URL)}/api/data${path}`, options);
 
 export const backendRequest = (path, options) =>
-  requestJson(`${BACKEND_URL}${path}`, options);
+  requestJson(`${requireBackendUrl(BACKEND_URL)}${path}`, options);

@@ -15,14 +15,31 @@ import {
   GoogleAuthProvider,
   FacebookAuthProvider,
   signInWithPopup,
-  fetchSignInMethodsForEmail,
+  signInWithRedirect,
+  getRedirectResult,
 } from "firebase/auth";
 import { auth } from "./config";
 import { apiRequest } from "./apiClient";
 
+const POPUP_FALLBACK_CODES = new Set([
+  "auth/popup-blocked",
+  "auth/cancelled-popup-request",
+]);
+
+const signInWithProvider = async (provider) => {
+  try {
+    const cred = await signInWithPopup(auth, provider);
+    return cred.user;
+  } catch (err) {
+    if (!POPUP_FALLBACK_CODES.has(err?.code)) throw err;
+    await signInWithRedirect(auth, provider);
+    return null;
+  }
+};
+
 // Firebase remains the identity provider; profile data is stored in Postgres.
 export const registerUser = async (name, email, password) => {
-  const cred = await createUserWithEmailAndPassword(auth, email, password);
+  const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
   const user = cred.user;
   await apiRequest(`/profile/${encodeURIComponent(user.uid)}`, {
     method: "PUT",
@@ -31,37 +48,38 @@ export const registerUser = async (name, email, password) => {
   return user;
 };
 
-export const loginUser = async (email, password) => {
-  const methods = await fetchSignInMethodsForEmail(auth, email);
-
-  if (methods.length > 0 && !methods.includes("password")) {
-    const providerName = methods[0] === "google.com"
-      ? "Google"
-      : methods[0] === "facebook.com"
-        ? "Facebook"
-        : methods[0];
-
-    const err = new Error(
-      `This account was created with ${providerName} sign-in. Please use the ${providerName} button to continue.`
-    );
-    err.code = "auth/account-uses-social-login";
-    throw err;
-  }
-
-  return signInWithEmailAndPassword(auth, email, password);
-};
+export const loginUser = async (email, password) =>
+  signInWithEmailAndPassword(auth, email.trim(), password);
 
 export const loginWithGoogle = async () => {
   const provider = new GoogleAuthProvider();
-  const cred = await signInWithPopup(auth, provider);
-  return cred.user;
+  provider.setCustomParameters({ prompt: "select_account" });
+  return signInWithProvider(provider);
 };
 
 export const loginWithFacebook = async () => {
   const provider = new FacebookAuthProvider();
   provider.setCustomParameters({ display: "popup" });
-  const cred = await signInWithPopup(auth, provider);
-  return cred.user;
+  return signInWithProvider(provider);
+};
+
+export const completeSocialRedirect = async () => {
+  const result = await getRedirectResult(auth);
+  return result?.user ?? null;
+};
+
+export const watchSocialRedirect = (onUser, onError) => {
+  let cancelled = false;
+  completeSocialRedirect()
+    .then((user) => {
+      if (!cancelled && user) onUser(user);
+    })
+    .catch((err) => {
+      if (!cancelled) onError(err);
+    });
+  return () => {
+    cancelled = true;
+  };
 };
 
 export const logoutUser = () => signOut(auth);
@@ -94,25 +112,34 @@ export const changePassword = async (currentPassword, newPassword) => {
 };
 
 // Remove the app's account data before deleting the Firebase Auth identity.
-export const deleteAccount = async () => {
+export const deleteAccount = async (currentPassword = "") => {
   const user = auth.currentUser;
   if (!user) throw new Error("No authenticated user");
+  if (currentPassword && user.email) {
+    const credential = EmailAuthProvider.credential(user.email, currentPassword);
+    await reauthenticateWithCredential(user, credential);
+  }
   await apiRequest(`/profile/${encodeURIComponent(user.uid)}`, { method: "DELETE" });
   await deleteUser(user);
 };
 
-// Export the current user's data as a plain object (replaces /api/auth/export).
+// Export the current user's full data (profile, settings, study progress, schedule).
 export const exportUserData = async () => {
   const user = auth.currentUser;
   if (!user) throw new Error("No authenticated user");
-  const [profile, settings] = await Promise.all([
-    apiRequest(`/profile/${encodeURIComponent(user.uid)}`),
-    apiRequest(`/settings/${encodeURIComponent(user.uid)}`),
+  const encodedUid = encodeURIComponent(user.uid);
+  const [profile, settings, studyProgress, schedule] = await Promise.all([
+    apiRequest(`/profile/${encodedUid}`),
+    apiRequest(`/settings/${encodedUid}`),
+    apiRequest(`/progress/${encodedUid}`).catch(() => []),
+    apiRequest(`/schedule/${encodedUid}`).catch(() => []),
   ]);
   return {
     account: { uid: user.uid, email: user.email },
     user: profile,
     settings,
+    studyProgress: Array.isArray(studyProgress) ? studyProgress : [],
+    schedule: Array.isArray(schedule) ? schedule : [],
     exportedAt: new Date().toISOString(),
   };
 };
@@ -122,24 +149,20 @@ export const getCurrentUser = () => auth.currentUser;
 
 // Maps Firebase Auth error codes to friendly messages.
 export const mapAuthError = (err) => {
-  // Debug: log the full error object to the console
-  console.error("Firebase Auth Error Object:", err);
   const code = err?.code || "";
   switch (code) {
     case "auth/invalid-email":
       return "Please enter a valid email address.";
-    case "auth/account-uses-social-login":
-      return "This account was created with Google/Facebook sign-in. Please use the Google or Facebook button to continue.";
     case "auth/user-not-found":
     case "auth/wrong-password":
     case "auth/invalid-credential":
       return "Invalid email or password.";
     case "auth/account-exists-with-different-credential":
-      return "This account is already linked to another sign-in method.";
+      return "This account is already linked to another sign-in method. Try Google or Facebook, or use email and password.";
     case "auth/email-already-in-use":
       return "An account with this email already exists.";
     case "auth/popup-blocked":
-      return "The sign-in popup was blocked. Please allow popups and try again.";
+      return "The sign-in popup was blocked by your browser. Please allow popups and try again.";
     case "auth/popup-closed-by-user":
       return "The sign-in window was closed before finishing. Please try again.";
     case "auth/weak-password":
@@ -147,10 +170,21 @@ export const mapAuthError = (err) => {
     case "auth/requires-recent-login":
       return "Please log in again before performing this action.";
     case "auth/too-many-requests":
-      return "Too many attempts. Please try again later.";
+      return "Too many attempts right now. Please wait a moment and try again.";
     case "auth/network-request-failed":
-      return "Network error. Please check your connection.";
+      return "We couldn't connect right now. Please check your internet connection and try again.";
+    case "auth/operation-not-allowed":
+      return "This sign-in method isn't available right now. Please use email and password instead.";
+    case "auth/unauthorized-domain":
+      return "Sign-in isn't available from this address right now. Please try again later.";
+    case "auth/expired-action-code":
+      return "This reset link has expired. Please request a new password reset email.";
+    case "auth/invalid-action-code":
+      return "This reset link is invalid or has already been used. Please request a new one.";
+    case "auth/configuration-not-found":
+    case "auth/internal-error":
+      return "We couldn't complete sign-in right now. Please try email and password or try again shortly.";
     default:
-      return err?.message || "Authentication failed. Please try again.";
+      return "Authentication failed. Please try again.";
   }
 };

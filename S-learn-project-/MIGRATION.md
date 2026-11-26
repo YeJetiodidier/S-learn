@@ -24,9 +24,9 @@
 
 Deploy the backend and frontend as separate Vercel projects:
 
-1. Create a backend project with Root Directory `backend`. Add `DATABASE_URL`, `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT_JSON`, the Vercel Blob `BLOB_READ_WRITE_TOKEN`, and comma-separated `FRONTEND_ORIGINS` as server-side environment variables for Preview and Production. Never prefix these with `VITE_`.
+1. In this repository, create a backend project with Root Directory `S-learn-project-/backend`. Add `DATABASE_URL`, `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT_JSON`, the Vercel Blob `BLOB_READ_WRITE_TOKEN`, and comma-separated `FRONTEND_ORIGINS` as server-side environment variables for Preview and Production. Never prefix these with `VITE_`.
 2. Connect a Blob store to the backend Vercel project and set the service account JSON only in Vercel's encrypted environment settings.
-3. Create a frontend project with Root Directory `frontend`. Configure the Firebase `VITE_FIREBASE_*` values and set `VITE_BACKEND_URL` to the deployed backend origin. The included `frontend/vercel.json` routes React Router paths back to the app entry point.
+3. Create a frontend project with Root Directory `S-learn-project-/frontend`. Configure the Firebase `VITE_FIREBASE_*` values and set `VITE_BACKEND_URL` to the deployed backend origin (for example, `https://<backend-project>.vercel.app`, without `/api`). Do not set it to `localhost`; phones and deployed sites cannot reach a developer computer's localhost. Redeploy the frontend after changing this variable. The included `frontend/vercel.json` routes React Router paths back to the app entry point.
 4. In Firebase Authentication's authorized domains, add the production and preview frontend hostnames. Set `FRONTEND_ORIGINS` to the exact frontend origins (comma-separated); unlisted origins are rejected.
 5. Run the schema migration against the production Neon database before routing production traffic to the new frontend.
 6. Non-admin paper submissions remain pending and are hidden from the shared paper list until an admin approves them.
@@ -69,3 +69,15 @@ This uploads files found in the repository's `documents` directory and updates m
 6. Keep the old Firestore data and original uploads unchanged until production verification and rollback are no longer needed.
 
 The Blob migration script currently expects references in Neon to use URLs whose path contains `/documents/<relative-path>`. Files with no matching database record are still uploaded; unrelated external video URLs are left unchanged. If old uploads live only on a deployed host, export them first and point `DOCUMENTS_DIR` at that export.
+
+To replace every paper record with the unique, valid PDFs currently in `documents`, first review the dry-run listing:
+
+```powershell
+npm run db:replace:papers --prefix S-learn-project-/backend
+```
+
+Only run the replacement after reviewing the list and retaining a database backup. This operation deletes all rows from `papers`, uploads the local PDFs to Vercel Blob, then inserts the replacements as approved; it does not change videos or other tables. Apply it with:
+
+```powershell
+npm run db:replace:papers --prefix S-learn-project-/backend -- --apply
+```

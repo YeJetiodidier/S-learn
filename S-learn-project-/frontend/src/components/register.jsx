@@ -1,7 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { registerUser, loginWithGoogle, loginWithFacebook, mapAuthError } from "../firebase/authService";
+import { registerUser, loginWithGoogle, loginWithFacebook, mapAuthError, watchSocialRedirect } from "../firebase/authService";
 import "../auth.css"; // Using new styling
+
+const getPasswordStrength = (password) => {
+  const checks = [
+    password.length >= 8,
+    /[a-z]/.test(password),
+    /[A-Z]/.test(password),
+    /\d/.test(password),
+    /[^A-Za-z0-9]/.test(password),
+  ];
+  const score = checks.filter(Boolean).length;
+  const label = score < 3 ? "Weak" : score === 3 ? "Fair" : score === 4 ? "Strong" : "Very strong";
+  return { score, label };
+};
 
 function Register() {
   const navigate = useNavigate();
@@ -9,12 +22,17 @@ function Register() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    password: ""
+    password: "",
+    confirmPassword: "",
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const passwordStrength = getPasswordStrength(formData.password);
+
+  useEffect(() => watchSocialRedirect(() => navigate("/loading"), (err) => setError(mapAuthError(err))), [navigate]);
 
   const handleChange = (e) => {
     setFormData({
@@ -29,9 +47,11 @@ function Register() {
     setError("");
     setSuccess("");
     try {
-      await loginWithGoogle();
-      setSuccess("Account linked! Redirecting...");
-      setTimeout(() => navigate("/loading"), 1000);
+      const user = await loginWithGoogle();
+      if (user) {
+        setSuccess("Account linked! Redirecting...");
+        setTimeout(() => navigate("/loading"), 1000);
+      }
     } catch (err) {
       setError(mapAuthError(err));
     }
@@ -41,9 +61,11 @@ function Register() {
     setError("");
     setSuccess("");
     try {
-      await loginWithFacebook();
-      setSuccess("Facebook account linked! Redirecting...");
-      setTimeout(() => navigate("/loading"), 1000);
+      const user = await loginWithFacebook();
+      if (user) {
+        setSuccess("Facebook account linked! Redirecting...");
+        setTimeout(() => navigate("/loading"), 1000);
+      }
     } catch (err) {
       setError(mapAuthError(err));
     }
@@ -66,6 +88,16 @@ function Register() {
     
     if (!formData.password || formData.password.length < 6) {
       setError("Password must be at least 6 characters long.");
+      return;
+    }
+
+    if (passwordStrength.score < 3) {
+      setError("Please choose a stronger password with a mix of character types.");
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("The passwords do not match.");
       return;
     }
 
@@ -153,6 +185,7 @@ function Register() {
                 type={showPassword ? "text" : "password"}
                 name="password"
                 placeholder="Enter your password"
+                autoComplete="new-password"
                 value={formData.password}
                 onChange={handleChange}
               />
@@ -176,6 +209,75 @@ function Register() {
                 </svg>
               </button>
             </div>
+            <div
+              className={`password-strength password-strength--${passwordStrength.score < 3 ? "weak" : passwordStrength.score === 3 ? "fair" : passwordStrength.score === 4 ? "strong" : "very-strong"}`}
+            >
+              <div
+                className="password-strength-meter"
+                role="meter"
+                aria-label={`Password strength: ${passwordStrength.label}`}
+                aria-valuemin={0}
+                aria-valuemax={5}
+                aria-valuenow={passwordStrength.score}
+              >
+                {Array.from({ length: 5 }, (_, index) => (
+                  <span
+                    key={index}
+                    className={index < passwordStrength.score ? "is-active" : ""}
+                  />
+                ))}
+              </div>
+              <p className="password-strength-label" aria-live="polite">
+                Password strength: {formData.password ? passwordStrength.label : "Not entered"}
+              </p>
+            </div>
+          </div>
+
+          <div className="auth-input-group">
+            <div className="auth-labels">
+              <span className="auth-label">Confirm Password</span>
+            </div>
+            <div className="auth-input-wrapper auth-password-wrapper">
+              <div className="auth-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+              </div>
+              <div className="auth-separator"></div>
+              <input
+                className="auth-input auth-password-input"
+                type={showConfirmPassword ? "text" : "password"}
+                name="confirmPassword"
+                placeholder="Re-enter your password"
+                autoComplete="new-password"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                aria-invalid={Boolean(formData.confirmPassword && formData.password !== formData.confirmPassword)}
+              />
+              <button
+                type="button"
+                className="auth-password-toggle"
+                aria-label={showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"}
+                onClick={() => setShowConfirmPassword((value) => !value)}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  {showConfirmPassword ? (
+                    <path d="M12 5c-5.5 0-10 4.5-10 7s4.5 7 10 7 10-4.5 10-7-4.5-7-10-7zm0 11.5A4.5 4.5 0 1 1 12 7a4.5 4.5 0 0 1 0 9.5zm0-7.5A3 3 0 1 0 12 15a3 3 0 0 0 0-6z" />
+                  ) : (
+                    <path d="M3 3l18 18M10.5 10.5A2.5 2.5 0 0 0 13.5 13.5M9.12 5.7A10.7 10.7 0 0 1 12 5c5.5 0 10 4.5 10 7a13.5 13.5 0 0 1-4.65 5.4M6.7 6.7A13.4 13.4 0 0 0 2 12c0 2.5 4.5 7 10 7 2.2 0 4.1-.7 5.6-1.8" />
+                  )}
+                </svg>
+              </button>
+            </div>
+            {formData.confirmPassword && (
+              <p
+                className={`password-match ${formData.password === formData.confirmPassword ? "password-match--valid" : "password-match--invalid"}`}
+                aria-live="polite"
+              >
+                {formData.password === formData.confirmPassword ? "Passwords match." : "Passwords do not match."}
+              </p>
+            )}
           </div>
 
           <button type="submit" className="auth-btn">Register</button>

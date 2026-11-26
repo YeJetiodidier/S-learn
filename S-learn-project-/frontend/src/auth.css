@@ -127,6 +127,58 @@
   padding-right: 68px;
 }
 
+.password-strength {
+  margin-top: 9px;
+}
+
+.password-strength-meter {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+  height: 5px;
+}
+
+.password-strength-meter span {
+  border-radius: 999px;
+  background: #e2e8f0;
+  transition: background-color 160ms ease;
+}
+
+.password-strength--weak .password-strength-meter .is-active {
+  background: #ef4444;
+}
+
+.password-strength--fair .password-strength-meter .is-active {
+  background: #f59e0b;
+}
+
+.password-strength--strong .password-strength-meter .is-active {
+  background: #22c55e;
+}
+
+.password-strength--very-strong .password-strength-meter .is-active {
+  background: #059669;
+}
+
+.password-strength-label,
+.password-match {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.password-strength-label {
+  color: #64748b;
+}
+
+.password-match--valid {
+  color: #15803d;
+}
+
+.password-match--invalid {
+  color: #dc2626;
+}
+
 .auth-password-input {
   padding-right: 8px;
 }
@@ -375,4 +427,3 @@
     font-size: 0.85rem;
   }
 }
-

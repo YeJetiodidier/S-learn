@@ -13,6 +13,7 @@ import ExamSetup from "./pages/ExamSetup";
 import ExamRun from "./pages/ExamRun";
 import Result from "./pages/Result";
 import ResetPassword from "./pages/ResetPassword";
+import InstallGuideModal from "./components/InstallGuideModal";
 import { onAuthChange } from "./firebase/authService";
 
 // Guards authenticated routes: waits for Firebase Auth to resolve, then
@@ -47,6 +48,7 @@ function App() {
         <Route path="/exam/run" element={<RequireAuth><ExamRun /></RequireAuth>} />
         <Route path="/exam/result" element={<RequireAuth><Result /></RequireAuth>} />
       </Routes>
+      <InstallGuideModal />
     </BrowserRouter>
   );
 }

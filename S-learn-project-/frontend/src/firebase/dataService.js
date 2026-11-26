@@ -21,6 +21,31 @@ export const getStudyProgress = (uid) =>
 export const recordExamProgress = (result) =>
   apiRequest("/progress/exam", { method: "POST", body: result });
 
+/* ───────────── SCHEDULE ───────────── */
+export const getSchedule = (uid) =>
+  apiRequest(`/schedule/${encodeURIComponent(uid)}`);
+
+export const addScheduleItem = (item) =>
+  apiRequest("/schedule", { method: "POST", body: item });
+
+export const updateScheduleItem = (id, data) =>
+  apiRequest(`/schedule/${encodeURIComponent(id)}`, { method: "PATCH", body: data });
+
+export const deleteScheduleItem = (id) =>
+  apiRequest(`/schedule/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+/* ───────────── NOTIFICATIONS ───────────── */
+export const getNotifications = () => apiRequest("/notifications");
+
+export const broadcastNotification = (payload) =>
+  apiRequest("/notifications/broadcast", { method: "POST", body: payload });
+
+export const markNotificationRead = (id) =>
+  apiRequest(`/notifications/${encodeURIComponent(id)}/read`, { method: "PATCH" });
+
+export const markAllNotificationsRead = () =>
+  apiRequest("/notifications/read-all", { method: "POST" });
+
 /* ───────────── PAPERS ───────────── */
 export const getPapers = () => apiRequest("/papers");
 
@@ -63,6 +88,8 @@ export const deleteVideo = (id) =>
 
 
 /* ───────────── QUESTIONS / EXAM ───────────── */
+export const getSubjects = () => apiRequest("/questions/subjects");
+
 export const getTopics = (subject) =>
   apiRequest(`/questions/topics?subject=${encodeURIComponent(subject)}`);
 
@@ -131,6 +158,15 @@ const extractConceptsFromPapers = (papers, subject, topic) => {
     .slice(0, 12);
 };
 
+const shuffleOptions = (options) => {
+  const copy = [...options];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+};
+
 const makePaperQuestion = (subject, topic, concept, index) => {
   const templates = [
     {
@@ -172,11 +208,12 @@ const makePaperQuestion = (subject, topic, concept, index) => {
   ];
 
   const template = templates[index % templates.length];
+  const answer = template.options[0];
   return {
     id: `paper-${Date.now()}-${index}`,
-    question_text: template.question_text.replace("concept", concept),
-    options: template.options,
-    answer: template.options[0],
+    question_text: template.question_text,
+    options: shuffleOptions(template.options),
+    answer,
   };
 };
 

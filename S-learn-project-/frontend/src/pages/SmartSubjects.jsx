@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+import StatusBanner from "../components/StatusBanner";
+import { getFriendlyErrorMessage } from "../utils/friendlyError";
 import {
   getPapers,
   addPaper,
@@ -14,10 +17,12 @@ import "../dashboard.css";
 import "../App.css";
 
 function SmartSubjects() {
+  const [searchParams] = useSearchParams();
   const [level, setLevel] = useState("");
-  const [subject, setSubject] = useState("");
+  const [subject, setSubject] = useState(() => searchParams.get("subject") || "");
   const [paper, setPaper] = useState("");
   const [year, setYear] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("search") || "");
 
   const [allPapers, setAllPapers] = useState([]);
   const [pendingPapers, setPendingPapers] = useState([]);
@@ -38,10 +43,14 @@ function SmartSubjects() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
+  const [loadError, setLoadError] = useState("");
+  const [feedback, setFeedback] = useState(null);
+  const [modalError, setModalError] = useState("");
 
   // Fetch papers from the API.
   const fetchPapers = async () => {
     setIsLoading(true);
+    setLoadError("");
     try {
       const data = await getPapers();
       setAllPapers(Array.isArray(data) ? data : []);
@@ -62,6 +71,9 @@ function SmartSubjects() {
       }
     } catch (err) {
       console.error("Could not load papers:", err);
+      setLoadError(
+        getFriendlyErrorMessage(err, "We couldn't load past papers right now. Please try again."),
+      );
     } finally {
       setIsLoading(false);
     }
@@ -72,17 +84,22 @@ function SmartSubjects() {
   }, []);
 
   const handleAddPaper = async () => {
-    if (!newPaper.level || !newPaper.subject || !newPaper.year) {
-      return alert("Please fill all required fields (Level, Subject, Year)!");
+    setModalError("");
+    if (!newPaper.level.trim() || !newPaper.subject.trim() || !newPaper.year.trim()) {
+      setModalError("Please fill in the Academic Level, Subject, and Year.");
+      return;
     }
-    if (!isBulkMode && !newPaper.paperName) {
-      return alert("Please enter the paper name!");
+    if (!isBulkMode && !newPaper.paperName.trim()) {
+      setModalError("Please enter a name for the paper.");
+      return;
     }
     if (isBulkMode && paperFiles.length === 0) {
-      return alert("Please select files to upload!");
+      setModalError("Please select at least one PDF file to upload.");
+      return;
     }
-    if (!isBulkMode && !paperFile && !newPaper.link) {
-      return alert("Please select a file or enter a link!");
+    if (!isBulkMode && !paperFile && !newPaper.link.trim()) {
+      setModalError("Please attach a PDF file or provide a link to the paper.");
+      return;
     }
 
     if (isSubmitting) return;
@@ -90,13 +107,12 @@ function SmartSubjects() {
 
     try {
       if (isAdmin && isBulkMode) {
-        // Bulk mode
         let count = 0;
         for (const [index, file] of paperFiles.entries()) {
           const cleanName = file.name
-            .replace(/\.[^/.]+$/, "") // strip extension
-            .replace(/_/g, " ") // replace underscores with spaces
-            .replace(/-/g, " "); // replace dashes with spaces
+            .replace(/\.[^/.]+$/, "")
+            .replace(/_/g, " ")
+            .replace(/-/g, " ");
 
           setUploadProgress({
             currentFile: index + 1,
@@ -122,13 +138,13 @@ function SmartSubjects() {
             stage: "saving",
           }));
           await addPaper({
-            level: newPaper.level,
-            specialty: newPaper.specialty || "",
-            subject: newPaper.subject,
+            level: newPaper.level.trim(),
+            specialty: newPaper.specialty.trim() || "",
+            subject: newPaper.subject.trim(),
             paper_name: cleanName,
-            year: newPaper.year,
+            year: newPaper.year.trim(),
             link: link || "",
-            status: "approved", // auto-approve for admin
+            status: "approved",
           });
           count++;
         }
@@ -138,10 +154,12 @@ function SmartSubjects() {
           percentage: 100,
           stage: "refreshing",
         });
-        alert(`Successfully uploaded ${count} papers!`);
+        setFeedback({
+          type: "success",
+          message: `Successfully uploaded ${count} paper${count === 1 ? "" : "s"}!`,
+        });
       } else {
-        // Single mode
-        let link = newPaper.link;
+        let link = newPaper.link.trim();
         if (paperFile) {
           setUploadProgress({
             currentFile: 1,
@@ -166,19 +184,20 @@ function SmartSubjects() {
           }));
         }
         await addPaper({
-          level: newPaper.level,
-          specialty: newPaper.specialty || "",
-          subject: newPaper.subject,
-          paper_name: newPaper.paperName,
-          year: newPaper.year,
+          level: newPaper.level.trim(),
+          specialty: newPaper.specialty.trim() || "",
+          subject: newPaper.subject.trim(),
+          paper_name: newPaper.paperName.trim(),
+          year: newPaper.year.trim(),
           link: link || "",
           status: isAdmin ? "approved" : "pending",
         });
-        alert(
-          isAdmin
-            ? "Paper added to the shared library successfully!"
-            : "Paper submitted for review. It will appear for everyone after an Admin approves it."
-        );
+        setFeedback({
+          type: "success",
+          message: isAdmin
+            ? "Paper added to the shared library and subscribers notified!"
+            : "Paper submitted for review. It will appear once an Admin approves it.",
+        });
         if (paperFile) {
           setUploadProgress((current) => ({
             ...current,
@@ -202,7 +221,9 @@ function SmartSubjects() {
       setPaperFiles([]);
       setIsBulkMode(false);
     } catch (err) {
-      alert("Failed to add paper: " + (err?.message || err));
+      setModalError(
+        getFriendlyErrorMessage(err, "We couldn't upload the paper right now. Please try again."),
+      );
     } finally {
       setUploadProgress(null);
       setIsSubmitting(false);
@@ -210,23 +231,36 @@ function SmartSubjects() {
   };
 
   const handleApprovePaper = async (id) => {
+    setFeedback(null);
     try {
-      const result = await approvePaper(id, getCurrentUser()?.uid);
-      alert(result?.alreadyApproved ? "This paper was already approved." : "Paper approved!");
+      const result = await approvePaper(id);
+      setFeedback({
+        type: "success",
+        message: result?.alreadyApproved
+          ? "This paper was already approved."
+          : "Paper approved and published!",
+      });
       await fetchPapers();
     } catch (err) {
-      alert("Approval failed: " + err.message);
+      setFeedback({
+        type: "error",
+        message: getFriendlyErrorMessage(err, "We couldn't approve this paper right now. Please try again."),
+      });
     }
   };
 
   const handleRejectPaper = async (id) => {
     if (!confirm("Are you sure you want to reject/delete this paper?")) return;
+    setFeedback(null);
     try {
       await deletePaper(id);
-      alert("Paper deleted.");
+      setFeedback({ type: "success", message: "Paper removed." });
       await fetchPapers();
     } catch (err) {
-      alert("Failed to delete paper: " + err.message);
+      setFeedback({
+        type: "error",
+        message: getFriendlyErrorMessage(err, "We couldn't delete this paper right now. Please try again."),
+      });
     }
   };
 
@@ -258,8 +292,15 @@ function SmartSubjects() {
   ].filter(Boolean);
 
   // Results Filter
+  const normalizedQuery = searchQuery.trim().toLowerCase();
   const filteredPapers = allPapers.filter((p) => {
+    const matchesKeyword =
+      !normalizedQuery ||
+      `${p.subject || ""} ${p.paper_name || ""} ${p.level || ""} ${p.year || ""} ${p.specialty || ""}`
+        .toLowerCase()
+        .includes(normalizedQuery);
     return (
+      matchesKeyword &&
       (!level || p.level === level) &&
       (!subject || p.subject === subject) &&
       (!paper || p.paper_name === paper) &&
@@ -291,7 +332,10 @@ function SmartSubjects() {
   const handleDownload = async (e, p) => {
     e.preventDefault();
     const paperLink = normalizePaperLink(p.link);
-    if (!paperLink) return alert("No link available");
+    if (!paperLink) {
+      setFeedback({ type: "error", message: "No downloadable link is available for this paper." });
+      return;
+    }
 
     try {
       const response = await fetch(paperLink, { method: "GET" });
@@ -350,12 +394,21 @@ function SmartSubjects() {
                 padding: "10px 24px",
                 fontSize: "0.9rem",
               }}
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => {
+                setModalError("");
+                setIsModalOpen(true);
+              }}
             >
               + Add New Paper
             </button>
           </div>
         </div>
+
+        <StatusBanner
+          type={feedback?.type}
+          message={feedback?.message}
+          onDismiss={() => setFeedback(null)}
+        />
 
         {/* ADMIN TAB OPTIONS */}
         {isAdmin && (
@@ -405,6 +458,21 @@ function SmartSubjects() {
                   background: "linear-gradient(to right, #ffffff, #f8faff)",
                 }}
               >
+                <div style={{ marginBottom: "16px" }}>
+                  <input
+                    type="text"
+                    className="db-search"
+                    style={{
+                      padding: "10px 14px",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "10px",
+                      width: "100%",
+                    }}
+                    placeholder="Search papers by subject, title, level, or year..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
                 <div
                   style={{
                     display: "grid",
@@ -701,7 +769,7 @@ function SmartSubjects() {
                             if (paperLink) {
                               window.open(paperLink, "_blank", "noopener,noreferrer");
                             } else {
-                              alert("No link available");
+                              setFeedback({ type: "error", message: "No link is available for this paper." });
                             }
                           }}
                           onMouseEnter={(e) =>
@@ -748,9 +816,15 @@ function SmartSubjects() {
                   className="db-stat-card"
                   style={{ textAlign: "center", padding: "60px" }}
                 >
-                  <p style={{ color: "#64748b" }}>
-                    No papers found matching your filters.
-                  </p>
+                  {loadError ? (
+                    <p role="alert" style={{ color: "#b91c1c" }}>
+                      {loadError}
+                    </p>
+                  ) : (
+                    <p style={{ color: "#64748b" }}>
+                      No papers found matching your filters.
+                    </p>
+                  )}
                   <button
                     className="arrow-btn"
                     style={{
@@ -760,14 +834,15 @@ function SmartSubjects() {
                       borderRadius: "12px",
                       fontSize: "0.85rem",
                     }}
-                    onClick={() => {
+                    onClick={loadError ? fetchPapers : () => {
                       setLevel("");
                       setSubject("");
                       setPaper("");
                       setYear("");
+                      setSearchQuery("");
                     }}
                   >
-                    Reset Filters
+                    {loadError ? "Try Again" : "Reset Filters"}
                   </button>
                 </div>
               )}
@@ -893,11 +968,14 @@ function SmartSubjects() {
                           borderRadius: "10px",
                           cursor: "pointer",
                         }}
-                        onClick={() =>
-                          p.link
-                            ? window.open(p.link, "_blank")
-                            : alert("No link")
-                        }
+                        onClick={() => {
+                          const paperLink = normalizePaperLink(p.link);
+                          if (paperLink) {
+                            window.open(paperLink, "_blank", "noopener,noreferrer");
+                          } else {
+                            setFeedback({ type: "error", message: "No link is available for this paper." });
+                          }
+                        }}
                       >
                         View Paper
                       </button>
@@ -983,6 +1061,8 @@ function SmartSubjects() {
             <h2 className="db-section-title" style={{ marginBottom: "10px" }}>
               Submit New Paper
             </h2>
+
+            <StatusBanner type="error" message={modalError} onDismiss={() => setModalError("")} />
 
             {isAdmin && (
               <div

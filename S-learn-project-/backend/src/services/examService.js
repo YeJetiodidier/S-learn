@@ -3,24 +3,33 @@ import { pool } from "../config/db.js";
 import { generateWithLocalML } from "./mlExamService.js";
 import { randomUUID } from "crypto";
 
+const shuffleOptions = (options) => {
+    const copy = [...options];
+    for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+};
+
 const normalizeQuestionItem = (item, index) => {
     if (!item || typeof item !== "object") return null;
 
     const questionText = item.question_text || item.questionText || item.text || "";
-    const options = Array.isArray(item.options)
+    const rawOptions = Array.isArray(item.options)
         ? item.options
         : typeof item.options === "string"
             ? JSON.parse(item.options)
             : [];
 
-    if (!questionText || options.length < 2) return null;
+    if (!questionText || rawOptions.length < 2) return null;
 
-    const answer = item.answer || options[0];
+    const answer = item.answer || rawOptions[0];
 
     return {
         id: item.id ?? `llm-${Date.now()}-${index}`,
         question_text: questionText,
-        options,
+        options: shuffleOptions(rawOptions),
         answer,
     };
 };
@@ -144,7 +153,13 @@ const generateQuestionsWithLLM = async ({ subject, topic, count, papers = [] }) 
  */
 export const getTopics = async (subject) => {
     const result = await pool.query(
-        `SELECT DISTINCT topic FROM questions WHERE subject = $1 ORDER BY topic`,
+        `SELECT DISTINCT TRIM(topic) AS topic FROM (
+           SELECT topic FROM questions WHERE LOWER(subject) = LOWER($1)
+           UNION
+           SELECT paper_name AS topic FROM papers WHERE status = 'approved' AND LOWER(subject) = LOWER($1)
+         ) combined
+         WHERE TRIM(COALESCE(topic, '')) <> ''
+         ORDER BY topic`,
         [subject]
     );
     return result.rows.map((r) => r.topic);
@@ -181,7 +196,8 @@ export const generateExam = async ({ subject, topic, count, papers = [] }) => {
         answer: row.answer,
     }));
 
-    // 4. If questions are fewer than count, generate fallback ones
+    // 4. If questions are fewer than count, generate ephemeral fallback ones with shuffled options
+    // without polluting the permanent questions table.
     if (questions.length < safeCount) {
         const needed = safeCount - questions.length;
         for (let i = 1; i <= needed; i++) {
@@ -218,33 +234,15 @@ export const generateExam = async ({ subject, topic, count, papers = [] }) => {
 
             const template = templates[index % templates.length];
             const qText = template.text;
-            const options = template.options;
-            const answer = options[0];
+            const answer = template.options[0];
+            const options = shuffleOptions(template.options);
 
-            try {
-                const insertRes = await pool.query(
-                    `INSERT INTO questions (id, subject, topic, question_text, options, answer)
-                     VALUES ($1, $2, $3, $4, $5, $6)
-                     RETURNING id, question_text, options, answer`,
-                    [randomUUID(), subject, topic, qText, JSON.stringify(options), answer]
-                );
-                if (insertRes.rows.length) {
-                    questions.push({
-                        id: insertRes.rows[0].id,
-                        question_text: insertRes.rows[0].question_text,
-                        options: typeof insertRes.rows[0].options === "string" ? JSON.parse(insertRes.rows[0].options) : insertRes.rows[0].options,
-                        answer: insertRes.rows[0].answer,
-                    });
-                }
-            } catch (err) {
-                console.error("Error inserting generated AI question:", err.message);
-                questions.push({
-                    id: -index,
-                    question_text: qText,
-                    options: options,
-                    answer,
-                });
-            }
+            questions.push({
+                id: `fallback-${randomUUID()}`,
+                question_text: qText,
+                options,
+                answer,
+            });
         }
     }
     return questions.slice(0, safeCount);

@@ -1,38 +1,42 @@
 import { useEffect, useState } from "react";
 import { getSettings } from "../firebase/dataService";
-import { getCurrentUser } from "../firebase/authService";
+import { onAuthChange } from "../firebase/authService";
 import { applyAppearance } from "../utils/applyAppearance.js";
+import { DEFAULT_APPEARANCE, SettingsContext } from "./settingsStore.js";
 
 export function SettingsProvider({ children }) {
-  const [appearance, setAppearance] = useState({
-    theme: "light",
-    accentColor: "#8b5cf6",
-    fontSize: "medium",
-    compactMode: false,
-  });
+  const [appearance, setAppearance] = useState(DEFAULT_APPEARANCE);
 
-  // Load saved appearance from the API and apply it.
+  // Subscribe to Firebase Auth state so saved appearance loads once auth resolves.
   useEffect(() => {
     let active = true;
-    const uid = getCurrentUser()?.uid;
-    if (!uid) return;
-    getSettings(uid)
-      .then((d) => {
-        if (!d) return;
-        const next = {
-          theme: d.theme || "light",
-          accentColor: d.accent_color || "#8b5cf6",
-          fontSize: d.font_size || "medium",
-          compactMode: d.compact_mode ?? false,
-        };
-        if (active) setAppearance(next);
-        applyAppearance(next);
-      })
-      .catch((error) => {
-        console.error("Could not load appearance settings:", error);
-      });
+    const unsubscribe = onAuthChange((user) => {
+      if (!user?.uid) {
+        if (active) setAppearance(DEFAULT_APPEARANCE);
+        applyAppearance(DEFAULT_APPEARANCE);
+        return;
+      }
+
+      getSettings(user.uid)
+        .then((d) => {
+          if (!active || !d) return;
+          const next = {
+            theme: d.theme || "light",
+            accentColor: d.accent_color || "#8b5cf6",
+            fontSize: d.font_size || "medium",
+            compactMode: d.compact_mode ?? false,
+          };
+          setAppearance(next);
+          applyAppearance(next);
+        })
+        .catch((error) => {
+          console.error("Could not load appearance settings:", error);
+        });
+    });
+
     return () => {
       active = false;
+      unsubscribe();
     };
   }, []);
 
@@ -51,5 +55,9 @@ export function SettingsProvider({ children }) {
     return () => mq.removeEventListener("change", handler);
   }, [appearance]);
 
-  return children;
+  return (
+    <SettingsContext.Provider value={{ appearance, setAppearance }}>
+      {children}
+    </SettingsContext.Provider>
+  );
 }
