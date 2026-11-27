@@ -36,15 +36,15 @@ app.use("/api/data", appDataRoutes);
 app.use("/api/blob-upload", blobUploadRoutes);
 app.use("/api/exam", examRoutes);
 
-app.get("/", (req, res) => {
+app.get(["/", "/api"], (req, res) => {
   res.send("server is running");
 });
 
-app.get("/healthz", (_req, res) => {
+app.get(["/healthz", "/api/healthz"], (_req, res) => {
   res.json({ status: "ok" });
 });
 
-app.get("/readyz", async (_req, res) => {
+app.get(["/readyz", "/api/readyz"], async (_req, res) => {
   if (!pool) {
     return res.status(503).json({ status: "not_ready", database: "not_configured" });
   }
