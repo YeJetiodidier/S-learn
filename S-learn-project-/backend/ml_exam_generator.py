@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
 import json
 import random
@@ -75,6 +76,7 @@ BACKEND_ROOT = Path(__file__).resolve().parent
 DEFAULT_DOCUMENTS_DIR = BACKEND_ROOT.parents[1] / "documents"
 DEFAULT_DATASETS_DIR = BACKEND_ROOT / "ml_datasets"
 DEFAULT_MODEL_PATH = BACKEND_ROOT / "ml_models" / "slearn_exam_model.joblib"
+DEFAULT_RUNTIME_MODEL_PATH = BACKEND_ROOT / "ml_models" / "slearn_exam_model_runtime.json.gz"
 DEFAULT_METRICS_PATH = BACKEND_ROOT / "ml_models" / "model_metrics.json"
 
 
@@ -419,11 +421,15 @@ def train_and_save_model(
     model_file.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(artifact, model_file, compress=3)
 
+    runtime_file = export_runtime_model(artifact, DEFAULT_RUNTIME_MODEL_PATH)
+
     metrics_summary = {
         "schema_version": 2,
         "trained_at": trained_at,
         "model_file": str(model_file),
         "model_size_mb": round(model_file.stat().st_size / (1024 * 1024), 2),
+        "runtime_model_file": str(runtime_file),
+        "runtime_model_size_mb": round(runtime_file.stat().st_size / (1024 * 1024), 2),
         "local_papers_indexed": len(papers),
         "local_paper_subjects": artifact["local_paper_subjects"],
         "online_questions_indexed": len(dataset_questions),
@@ -436,6 +442,92 @@ def train_and_save_model(
     metrics_file.write_text(json.dumps(metrics_summary, indent=2), encoding="utf-8")
 
     return metrics_summary
+
+
+def export_runtime_model(
+    artifact: Dict[str, Any],
+    runtime_path: str | Path = DEFAULT_RUNTIME_MODEL_PATH,
+) -> Path:
+    """Export trained scikit-learn LinearSVC + TF-IDF retrieval weights to a portable
+    gzipped JSON artifact that executes natively in Node.js (e.g. Vercel serverless)
+    with zero Python runtime dependency.
+    """
+    clf_payload: Optional[Dict[str, Any]] = None
+    classifier = artifact.get("subject_classifier")
+    if classifier is not None:
+        vec = classifier.named_steps["tfidf"]
+        svc = classifier.named_steps["clf"]
+        vocab = {str(term): int(idx) for term, idx in vec.vocabulary_.items()}
+        idf = [round(float(v), 4) for v in vec.idf_]
+        classes = [str(c) for c in svc.classes_]
+        intercept = [round(float(b), 4) for b in svc.intercept_]
+
+        # Store sparse significant weights per class (|w| >= 0.02) to keep runtime compact & fast
+        sparse_coefs: List[List[Any]] = []
+        coef_matrix = svc.coef_
+        for row_idx in range(coef_matrix.shape[0]):
+            row = coef_matrix[row_idx]
+            entries = [
+                [int(col_idx), round(float(val), 4)]
+                for col_idx, val in enumerate(row)
+                if abs(float(val)) >= 0.02
+            ]
+            sparse_coefs.append(entries)
+
+        clf_payload = {
+            "vocab": vocab,
+            "idf": idf,
+            "classes": classes,
+            "intercept": intercept,
+            "sparse_coefs": sparse_coefs,
+        }
+
+    ret_payload: Optional[Dict[str, Any]] = None
+    ret_vec = artifact.get("retrieval_vectorizer")
+    ret_mat = artifact.get("retrieval_matrix")
+    if ret_vec is not None and ret_mat is not None:
+        ret_vocab = {str(term): int(idx) for term, idx in ret_vec.vocabulary_.items()}
+        ret_idf = [round(float(v), 4) for v in ret_vec.idf_]
+        doc_vectors: List[List[Any]] = []
+        csr = ret_mat.tocsr()
+        for row_idx in range(csr.shape[0]):
+            start, end = csr.indptr[row_idx], csr.indptr[row_idx + 1]
+            cols = csr.indices[start:end]
+            vals = csr.data[start:end]
+            # Keep top 28 weighted TF-IDF terms per question (already L2-normalized)
+            if len(vals) > 28:
+                top = np.argsort(vals)[::-1][:28]
+                cols = cols[top]
+                vals = vals[top]
+            doc_vectors.append(
+                [[int(c), round(float(v), 4)] for c, v in zip(cols, vals)]
+            )
+
+        ret_payload = {
+            "vocab": ret_vocab,
+            "idf": ret_idf,
+            "doc_vectors": doc_vectors,
+        }
+
+    runtime_bundle = {
+        "schema_version": 2,
+        "trained_at": artifact.get("trained_at"),
+        "local_papers_count": artifact.get("local_papers_count", 0),
+        "subject_years": artifact.get("subject_years", {}),
+        "subject_paper_keywords": artifact.get("subject_paper_keywords", {}),
+        "dataset_subject_counts": artifact.get("dataset_subject_counts", {}),
+        "classifier_metrics": artifact.get("classifier_metrics", {}),
+        "classifier": clf_payload,
+        "retrieval": ret_payload,
+        "question_bank": artifact.get("question_bank") or [],
+    }
+
+    out_path = Path(runtime_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    raw_bytes = json.dumps(runtime_bundle, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    with gzip.open(out_path, "wb", compresslevel=9) as fh:
+        fh.write(raw_bytes)
+    return out_path
 
 
 def _paper3_style_for_subject(subject: str) -> str:
@@ -811,6 +903,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="S-Learn ML Exam Engine: train, verify, and generate exam questions from a persisted scikit-learn model."
     )
     parser.add_argument("--train", action="store_true", help="Train and persist the ML model bundle")
+    parser.add_argument("--export-runtime", action="store_true", help="Export portable Node.js runtime model from saved .joblib")
     parser.add_argument("--verify", action="store_true", help="Verify the saved ML model bundle")
     parser.add_argument("--assist", action="store_true", help="Assist a learner with ML classification and syllabus retrieval")
     parser.add_argument("--query", type=str, default="", help="Student question or topic query for --assist mode")
@@ -837,6 +930,21 @@ def main() -> None:
             model_path=args.model,
         )
         print(json.dumps(metrics, indent=2))
+        return
+
+    if args.export_runtime:
+        artifact = joblib.load(args.model)
+        out = export_runtime_model(artifact, DEFAULT_RUNTIME_MODEL_PATH)
+        print(
+            json.dumps(
+                {
+                    "runtime_model_file": str(out),
+                    "size_mb": round(out.stat().st_size / (1024 * 1024), 2),
+                    "questions": len(artifact.get("question_bank") or []),
+                },
+                indent=2,
+            )
+        )
         return
 
     if args.verify:

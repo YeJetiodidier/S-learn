@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "src/server.js": {
+      "includeFiles": "ml_models/slearn_exam_model_runtime.json.gz"
+    }
+  }
+}

@@ -54,6 +54,7 @@ function PreGcePage() {
   );
 
   const [phase, setPhase] = useState("setup"); // "setup" | "running" | "summary"
+  const [paperViewMode, setPaperViewMode] = useState("board"); // "board" (Official GCE Paper) | "focus" (One-by-One)
   const [simulation, setSimulation] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState({});
@@ -434,7 +435,7 @@ function PreGcePage() {
 
         {phase === "running" && simulation && currentQuestion && (
           <section className="pe-sim-shell">
-            <div className="pe-sim-topbar">
+            <div className="pe-sim-topbar pe-no-print">
               <div>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
                   <span className="pe-mode-pill">{simulation.paperCode}</span>
@@ -445,151 +446,359 @@ function PreGcePage() {
                 <h2>
                   {simulation.subject} — {simulation.topic}
                 </h2>
-                <p className="pe-sim-instr">{simulation.instructions}</p>
               </div>
-              <div className="pe-sim-metrics">
-                {simulation.durationMinutes > 0 && (
-                  <div className={`pe-timer-box${secondsLeft <= 120 ? " urgent" : ""}`}>
-                    <span>Time Left</span>
-                    <strong>{formatTimer(secondsLeft)}</strong>
+
+              <div className="pe-sim-controls-right">
+                <div className="pe-tab-bar" role="tablist" aria-label="Exam paper view mode">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={paperViewMode === "board"}
+                    className={`pe-tab-btn${paperViewMode === "board" ? " active" : ""}`}
+                    onClick={() => setPaperViewMode("board")}
+                  >
+                    📄 GCE Paper Format
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={paperViewMode === "focus"}
+                    className={`pe-tab-btn${paperViewMode === "focus" ? " active" : ""}`}
+                    onClick={() => setPaperViewMode("focus")}
+                  >
+                    🎯 One-by-One
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  className="pe-secondary-btn"
+                  onClick={() => window.print()}
+                >
+                  🖨️ Print / PDF
+                </button>
+
+                <div className="pe-sim-metrics">
+                  {simulation.durationMinutes > 0 && (
+                    <div className={`pe-timer-box${secondsLeft <= 120 ? " urgent" : ""}`}>
+                      <span>Time Left</span>
+                      <strong>{formatTimer(secondsLeft)}</strong>
+                    </div>
+                  )}
+                  <div className="pe-timer-box">
+                    <span>Answered</span>
+                    <strong>
+                      {answeredCount} / {simulation.questions.length}
+                    </strong>
                   </div>
-                )}
-                <div className="pe-timer-box">
-                  <span>Answered</span>
-                  <strong>
-                    {answeredCount} / {simulation.questions.length}
-                  </strong>
                 </div>
               </div>
             </div>
 
-            <div className="pe-sim-layout">
-              <div className="pe-sim-question-card">
-                <div className="pe-sim-q-meta">
-                  <span className="pe-q-badge">
-                    Question {currentIndex + 1} of {simulation.questions.length}
-                  </span>
-                  <div className="pe-sim-q-right">
-                    {currentQuestion.topicTag && (
-                      <span className="pe-topic-chip">{currentQuestion.topicTag}</span>
-                    )}
-                    {currentQuestion.marks && (
-                      <span className="pe-marks-badge">{currentQuestion.marks} marks</span>
-                    )}
-                    <button
-                      type="button"
-                      className={`pe-flag-btn${flagged[currentQuestion.id] ? " active" : ""}`}
-                      onClick={() =>
-                        setFlagged((prev) => ({
-                          ...prev,
-                          [currentQuestion.id]: !prev[currentQuestion.id],
-                        }))
-                      }
-                    >
-                      {flagged[currentQuestion.id] ? "⚑ Flagged" : "⚐ Flag"}
-                    </button>
+            {paperViewMode === "board" ? (
+              /* ── OFFICIAL CAMEROON GCE BOARD EXAMINATION PAPER LAYOUT ── */
+              <article className="gce-board-sheet">
+                <header className="gce-board-masthead">
+                  <div className="gce-board-top-strip">
+                    <span>{simulation.gceBoardMeta?.subjectCode || simulation.paperCode}</span>
+                    <span>{simulation.gceBoardMeta?.session || "JUNE GCE SIMULATION"}</span>
                   </div>
+
+                  <h1 className="gce-board-org">
+                    {simulation.gceBoardMeta?.boardTitle ||
+                      "CAMEROON GENERAL CERTIFICATE OF EDUCATION BOARD"}
+                  </h1>
+                  <p className="gce-board-exam">
+                    {simulation.gceBoardMeta?.examTitle ||
+                      "General Certificate of Education Examination"}
+                  </p>
+
+                  <div className="gce-board-meta-table">
+                    <div>
+                      <span className="gce-meta-lbl">LEVEL</span>
+                      <strong>
+                        {simulation.gceBoardMeta?.levelTitle ||
+                          (simulation.level === "A-Level" ? "ADVANCED LEVEL" : "ORDINARY LEVEL")}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="gce-meta-lbl">SUBJECT TITLE</span>
+                      <strong>
+                        {simulation.gceBoardMeta?.subjectTitle ||
+                          String(simulation.subject || "").toUpperCase()}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="gce-meta-lbl">SUBJECT CODE</span>
+                      <strong>{simulation.gceBoardMeta?.subjectCode || "0500"}</strong>
+                    </div>
+                    <div>
+                      <span className="gce-meta-lbl">PAPER NUMBER</span>
+                      <strong>
+                        {simulation.gceBoardMeta?.paperNumber ||
+                          simulation.paperType.toUpperCase()}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="gce-meta-lbl">TIME ALLOWED</span>
+                      <strong>
+                        {simulation.durationMinutes > 0
+                          ? `${simulation.durationMinutes} MINUTES`
+                          : "UNTIMED"}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="gce-meta-lbl">TOTAL MARKS</span>
+                      <strong>
+                        {simulation.gceBoardMeta?.totalMarks || simulation.questions.length} MARKS
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="gce-candidate-strip">
+                    <div>
+                      <span>Candidate Name:</span>
+                      <span className="gce-blank-line" />
+                    </div>
+                    <div>
+                      <span>Centre No.:</span>
+                      <span className="gce-blank-line short" />
+                    </div>
+                    <div>
+                      <span>Candidate No.:</span>
+                      <span className="gce-blank-line short" />
+                    </div>
+                  </div>
+
+                  <div className="gce-rubric-box">
+                    <h3>
+                      {simulation.gceBoardMeta?.paperSubtitle || "INSTRUCTIONS TO CANDIDATES"}
+                    </h3>
+                    <ul>
+                      {(simulation.gceBoardMeta?.rubric || [simulation.instructions]).map(
+                        (line, idx) => (
+                          <li key={idx}>{line}</li>
+                        ),
+                      )}
+                    </ul>
+                  </div>
+                </header>
+
+                <div className="gce-paper-body">
+                  {simulation.questions.map((q, idx) => {
+                    const prevSection = idx > 0 ? simulation.questions[idx - 1]?.section : null;
+                    const showSectionBanner = q.section && q.section !== prevSection;
+
+                    return (
+                      <div key={q.id} className="gce-paper-q-wrap">
+                        {showSectionBanner && (
+                          <div className="gce-section-divider">
+                            <span>{q.section}</span>
+                          </div>
+                        )}
+
+                        <div className="gce-paper-question">
+                          <div className="gce-paper-q-top">
+                            <span className="gce-paper-q-num">{idx + 1}.</span>
+                            <div className="gce-paper-q-stem">{q.question_text}</div>
+                            <span className="gce-paper-marks">
+                              [{simulation.paperType === "paper1" ? "1 mark" : `${q.marks || 6} marks`}]
+                            </span>
+                          </div>
+
+                          {simulation.paperType === "paper1" ? (
+                            <div className="gce-paper-mcq-grid">
+                              {q.options.map((opt, optIdx) => {
+                                const letter = String.fromCharCode(65 + optIdx);
+                                const isSelected = answers[q.id] === opt;
+                                return (
+                                  <button
+                                    key={optIdx}
+                                    type="button"
+                                    className={`gce-paper-opt${isSelected ? " selected" : ""}`}
+                                    onClick={() =>
+                                      setAnswers((prev) => ({ ...prev, [q.id]: opt }))
+                                    }
+                                  >
+                                    <span className="gce-paper-opt-ltr">{letter}</span>
+                                    <span>{opt}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="gce-paper-answer-area">
+                              <textarea
+                                className="gce-paper-lines-input"
+                                rows={6}
+                                value={answers[q.id] || ""}
+                                onChange={(e) =>
+                                  setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))
+                                }
+                                placeholder={`Write your answer for Question ${idx + 1} here...`}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
-                <h3 className="pe-sim-q-text">{currentQuestion.question_text}</h3>
-
-                {simulation.paperType === "paper1" ? (
-                  <div className="pe-options-stack">
-                    {currentQuestion.options.map((opt, optIdx) => {
-                      const letter = String.fromCharCode(65 + optIdx);
-                      const isSelected = answers[currentQuestion.id] === opt;
-                      return (
-                        <button
-                          key={optIdx}
-                          type="button"
-                          className={`pe-option-card${isSelected ? " selected" : ""}`}
-                          onClick={() =>
-                            setAnswers((prev) => ({ ...prev, [currentQuestion.id]: opt }))
-                          }
-                        >
-                          <span className="pe-opt-letter">{letter}</span>
-                          <span>{opt}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <textarea
-                    className="pe-sim-textarea"
-                    rows={7}
-                    value={answers[currentQuestion.id] || ""}
-                    onChange={(e) =>
-                      setAnswers((prev) => ({ ...prev, [currentQuestion.id]: e.target.value }))
-                    }
-                    placeholder="Write your full structured GCE answer here, showing all steps clearly..."
-                  />
-                )}
-
-                <div className="pe-sim-nav-row">
-                  <button
-                    type="button"
-                    className="pe-secondary-btn"
-                    disabled={currentIndex === 0}
-                    onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
-                  >
-                    ‹ Previous
-                  </button>
-                  {currentIndex < simulation.questions.length - 1 ? (
+                <footer className="gce-board-footer">
+                  <p className="gce-end-notice">
+                    END OF EXAMINATION — STOP! GO BACK AND CHECK YOUR WORK.
+                  </p>
+                  <div className="gce-footer-actions pe-no-print">
                     <button
                       type="button"
-                      className="pe-primary-btn"
-                      onClick={() =>
-                        setCurrentIndex((i) => Math.min(simulation.questions.length - 1, i + 1))
-                      }
+                      className="pe-secondary-btn"
+                      onClick={() => window.print()}
                     >
-                      Next Question ›
+                      🖨️ Print / Save Official GCE PDF
                     </button>
-                  ) : (
                     <button
                       type="button"
                       className="pe-primary-btn"
                       disabled={grading}
                       onClick={handleFinishSimulation}
                     >
-                      {grading ? "Submitting Paper…" : "Submit Exam Paper"}
+                      {grading ? "Grading GCE Script…" : "✓ Submit Examination Script"}
                     </button>
-                  )}
-                </div>
-              </div>
-
-              <aside className="pe-sim-palette">
-                <h4>Question Navigator</h4>
-                <div className="pe-palette-grid">
-                  {simulation.questions.map((q, idx) => {
-                    const isCurrent = idx === currentIndex;
-                    const isDone = String(answers[q.id] || "").trim().length > 0;
-                    const isFlag = Boolean(flagged[q.id]);
-                    return (
+                  </div>
+                </footer>
+              </article>
+            ) : (
+              <div className="pe-sim-layout">
+                <div className="pe-sim-question-card">
+                  <div className="pe-sim-q-meta">
+                    <span className="pe-q-badge">
+                      Question {currentIndex + 1} of {simulation.questions.length}
+                    </span>
+                    <div className="pe-sim-q-right">
+                      {currentQuestion.topicTag && (
+                        <span className="pe-topic-chip">{currentQuestion.topicTag}</span>
+                      )}
+                      {currentQuestion.marks && (
+                        <span className="pe-marks-badge">{currentQuestion.marks} marks</span>
+                      )}
                       <button
-                        key={q.id}
                         type="button"
-                        className={`pe-palette-dot${isCurrent ? " current" : ""}${isDone ? " answered" : ""}${isFlag ? " flagged" : ""}`}
-                        onClick={() => setCurrentIndex(idx)}
+                        className={`pe-flag-btn${flagged[currentQuestion.id] ? " active" : ""}`}
+                        onClick={() =>
+                          setFlagged((prev) => ({
+                            ...prev,
+                            [currentQuestion.id]: !prev[currentQuestion.id],
+                          }))
+                        }
                       >
-                        {idx + 1}
+                        {flagged[currentQuestion.id] ? "⚑ Flagged" : "⚐ Flag"}
                       </button>
-                    );
-                  })}
+                    </div>
+                  </div>
+
+                  <h3 className="pe-sim-q-text" style={{ whiteSpace: "pre-line" }}>
+                    {currentQuestion.question_text}
+                  </h3>
+
+                  {simulation.paperType === "paper1" ? (
+                    <div className="pe-options-stack">
+                      {currentQuestion.options.map((opt, optIdx) => {
+                        const letter = String.fromCharCode(65 + optIdx);
+                        const isSelected = answers[currentQuestion.id] === opt;
+                        return (
+                          <button
+                            key={optIdx}
+                            type="button"
+                            className={`pe-option-card${isSelected ? " selected" : ""}`}
+                            onClick={() =>
+                              setAnswers((prev) => ({ ...prev, [currentQuestion.id]: opt }))
+                            }
+                          >
+                            <span className="pe-opt-letter">{letter}</span>
+                            <span>{opt}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <textarea
+                      className="pe-sim-textarea"
+                      rows={7}
+                      value={answers[currentQuestion.id] || ""}
+                      onChange={(e) =>
+                        setAnswers((prev) => ({ ...prev, [currentQuestion.id]: e.target.value }))
+                      }
+                      placeholder="Write your full structured GCE answer here, showing all steps clearly..."
+                    />
+                  )}
+
+                  <div className="pe-sim-nav-row">
+                    <button
+                      type="button"
+                      className="pe-secondary-btn"
+                      disabled={currentIndex === 0}
+                      onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+                    >
+                      ‹ Previous
+                    </button>
+                    {currentIndex < simulation.questions.length - 1 ? (
+                      <button
+                        type="button"
+                        className="pe-primary-btn"
+                        onClick={() =>
+                          setCurrentIndex((i) => Math.min(simulation.questions.length - 1, i + 1))
+                        }
+                      >
+                        Next Question ›
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="pe-primary-btn"
+                        disabled={grading}
+                        onClick={handleFinishSimulation}
+                      >
+                        {grading ? "Submitting Paper…" : "Submit Exam Paper"}
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="pe-palette-legend">
-                  <span><i className="dot answered" /> Answered</span>
-                  <span><i className="dot flagged" /> Flagged</span>
-                </div>
-                <button
-                  type="button"
-                  className="pe-primary-btn pe-full-width"
-                  disabled={grading}
-                  onClick={handleFinishSimulation}
-                >
-                  {grading ? "Grading Simulation…" : "Finish & Submit"}
-                </button>
-              </aside>
-            </div>
+
+                <aside className="pe-sim-palette">
+                  <h4>Question Navigator</h4>
+                  <div className="pe-palette-grid">
+                    {simulation.questions.map((q, idx) => {
+                      const isCurrent = idx === currentIndex;
+                      const isDone = String(answers[q.id] || "").trim().length > 0;
+                      const isFlag = Boolean(flagged[q.id]);
+                      return (
+                        <button
+                          key={q.id}
+                          type="button"
+                          className={`pe-palette-dot${isCurrent ? " current" : ""}${isDone ? " answered" : ""}${isFlag ? " flagged" : ""}`}
+                          onClick={() => setCurrentIndex(idx)}
+                        >
+                          {idx + 1}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="pe-palette-legend">
+                    <span><i className="dot answered" /> Answered</span>
+                    <span><i className="dot flagged" /> Flagged</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="pe-primary-btn pe-full-width"
+                    disabled={grading}
+                    onClick={handleFinishSimulation}
+                  >
+                    {grading ? "Grading Simulation…" : "Finish & Submit"}
+                  </button>
+                </aside>
+              </div>
+            )}
           </section>
         )}
 

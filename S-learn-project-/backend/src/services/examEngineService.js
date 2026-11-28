@@ -1,7 +1,11 @@
 // Unified Trained-ML + AI + structured fallback engine for S-Learn Exam Modes & Learning Notes.
 import { randomUUID } from "crypto";
 import { generateExam } from "./examService.js";
-import { generateWithLocalML, assistWithLocalML } from "./mlExamService.js";
+import {
+  generateWithLocalML,
+  assistWithLocalML,
+  getOfficialGceCode,
+} from "./mlExamService.js";
 
 const parseJsonSafe = (raw) => {
   if (!raw) return null;
@@ -531,7 +535,67 @@ export const generatePreGceSimulation = async ({
     ? Math.min(10, Math.max(2, Number(count) || 4))
     : Math.min(30, Math.max(5, Number(count) || 10));
 
-  // 1. Query the trained ML model (slearn_exam_model.joblib) FIRST
+  const officialCode = getOfficialGceCode(level, subject);
+  const paperNumberText =
+    safePaperType === "paper1"
+      ? "PAPER 1"
+      : safePaperType === "paper2"
+        ? "PAPER 2"
+        : "PAPER 3";
+  const levelFullTitle = level === "A-Level" ? "ADVANCED LEVEL" : "ORDINARY LEVEL";
+  const sessionTitle = `JUNE ${new Date().getFullYear()} · PRE-GCE SIMULATION`;
+  const officialRubric =
+    safePaperType === "paper1"
+      ? [
+          "Answer ALL questions in this examination paper.",
+          "Each question carries ONE (1) mark. Choose the single best letter A, B, C, or D.",
+          "Non-programmable scientific calculators are allowed where permitted by the syllabus.",
+          "You are advised to read every question carefully before selecting your answer.",
+        ]
+      : safePaperType === "paper2"
+        ? [
+            "Answer ALL questions in SECTIONS A and B.",
+            "You are reminded of the necessity for good English and orderly presentation in your answers.",
+            "In calculations, you are advised to show all the steps in your working, giving your answer at each stage.",
+            "The number of marks allocated to each question or part question is shown in square brackets [ ].",
+          ]
+        : [
+            "PRACTICAL / APPLIED EXAMINATION — Read all instructions carefully before beginning.",
+            "Record all experimental procedures, observations, workings, or critical arguments clearly in the spaces provided.",
+            "All relevant diagrams, tables, formulas, or textual citations must be neatly labelled.",
+            "Marks allocated to each task and sub-part are indicated in square brackets [ ].",
+          ];
+
+  const attachGceBoardMeta = (payload) => {
+    const qs = payload.questions || [];
+    const totalMarks = isWritten
+      ? qs.reduce((sum, q) => sum + (Number(q.marks) || (safePaperType === "paper3" ? 10 : 6)), 0)
+      : qs.length;
+    return {
+      ...payload,
+      paperCode: `${officialCode} / ${paperNumberText}`,
+      gceBoardMeta: {
+        boardTitle: "CAMEROON GENERAL CERTIFICATE OF EDUCATION BOARD",
+        examTitle: "General Certificate of Education Examination",
+        levelTitle: levelFullTitle,
+        subjectTitle: String(subject || "").toUpperCase(),
+        subjectCode: officialCode,
+        paperNumber: paperNumberText,
+        paperSubtitle:
+          safePaperType === "paper1"
+            ? "MULTIPLE CHOICE QUESTION PAPER"
+            : safePaperType === "paper2"
+              ? "STRUCTURED AND ESSAY QUESTION PAPER"
+              : "PRACTICAL / APPLIED EXAMINATION PAPER",
+        session: sessionTitle,
+        totalMarks,
+        durationMinutes: Number(durationMinutes) || 30,
+        rubric: officialRubric,
+      },
+    };
+  };
+
+  // 1. Query the trained ML model (Node-native runtime from slearn_exam_model_runtime.json.gz) FIRST
   const mlQuestions = await generateWithLocalML({
     level,
     subject,
@@ -541,24 +605,19 @@ export const generatePreGceSimulation = async ({
   });
 
   if (mlQuestions.length >= safeCount && mlQuestions.meta?.subjectMatched) {
-    return {
+    return attachGceBoardMeta({
       source: "ml",
       engine: "Trained ML Model",
       level,
       subject,
       topic: topic || "Full Syllabus",
       paperType: safePaperType,
-      paperCode: `${level} · ${paperLabel}`,
-      instructions:
-        safePaperType === "paper1"
-          ? "Answer ALL questions. Select the single best option A, B, C, or D."
-          : safePaperType === "paper2"
-            ? "Answer ALL structured questions clearly, showing all working and syllabus definitions."
-            : "Paper 3 Practical / Applied Assessment: Answer every section thoroughly with procedures, workings, or critical evaluation.",
+      paperCode: `${officialCode} / ${paperNumberText}`,
+      instructions: officialRubric[0],
       durationMinutes: Number(durationMinutes) || 30,
       paperKeywords: mlQuestions.meta?.paperKeywords || [],
       questions: mlQuestions.slice(0, safeCount),
-    };
+    });
   }
 
   // 2. Fall back to OpenAI/Gemini (grounded with any ML keywords/samples) for subjects not yet in ML corpus
@@ -642,23 +701,18 @@ Return valid JSON:
         .filter((q) => q.question_text && (isWritten || q.options.length >= 2));
 
       if (normalized.length > 0) {
-        return {
+        return attachGceBoardMeta({
           source: "ai",
           engine: mlQuestions.length > 0 ? "ML + AI Hybrid" : "AI GCE Setter",
           level,
           subject,
           topic: topic || "Full Syllabus",
           paperType: safePaperType,
-          paperCode: String(ai.paperCode || `${level} · ${paperLabel}`),
-          instructions: String(
-            ai.instructions ||
-              (isWritten
-                ? "Answer all questions clearly, showing all working and analysis."
-                : "Select the single best answer for each question before time expires."),
-          ),
+          paperCode: `${officialCode} / ${paperNumberText}`,
+          instructions: String(ai.instructions || officialRubric[0]),
           durationMinutes: Number(durationMinutes) || 30,
           questions: normalized,
-        };
+        });
       }
     }
   } catch (err) {
@@ -667,25 +721,24 @@ Return valid JSON:
 
   // 3. If ML returned partial/cross-subject questions, use them cleanly before generic fallback
   if (mlQuestions.length > 0) {
-    return {
+    return attachGceBoardMeta({
       source: "ml",
       engine: "Trained ML Model",
       level,
       subject,
       topic: topic || "Full Syllabus",
       paperType: safePaperType,
-      paperCode: `${level} · ${paperLabel}`,
-      instructions: isWritten
-        ? "Answer all questions clearly, showing all working and analysis."
-        : "Answer ALL questions. Select the single best option.",
+      paperCode: `${officialCode} / ${paperNumberText}`,
+      instructions: officialRubric[0],
       durationMinutes: Number(durationMinutes) || 30,
       questions: mlQuestions,
-    };
+    });
   }
 
   if (isWritten) {
     const questions = Array.from({ length: safeCount }, (_, idx) => ({
       id: `gce-${safePaperType}-fb-${idx + 1}`,
+      section: idx < Math.ceil(safeCount / 2) ? "SECTION A" : "SECTION B",
       topicTag: topic || subject,
       question_text:
         safePaperType === "paper3"
@@ -699,18 +752,18 @@ Return valid JSON:
         "Worked example, evaluation, or conclusion (2–4 marks)",
       ],
     }));
-    return {
+    return attachGceBoardMeta({
       source: "fallback",
       engine: "Syllabus Engine",
       level,
       subject,
       topic: topic || "Full Syllabus",
       paperType: safePaperType,
-      paperCode: `${level} · ${paperLabel}`,
-      instructions: "Answer all questions clearly, showing all working.",
+      paperCode: `${officialCode} / ${paperNumberText}`,
+      instructions: officialRubric[0],
       durationMinutes: Number(durationMinutes) || 30,
       questions,
-    };
+    });
   }
 
   const fallbackMcq = await generateExam({
@@ -720,22 +773,22 @@ Return valid JSON:
     papers,
   });
 
-  return {
+  return attachGceBoardMeta({
     source: "fallback",
     engine: "Syllabus Engine",
     level,
     subject,
     topic: topic || "Full Syllabus",
     paperType: "paper1",
-    paperCode: `${level} · Paper 1`,
-    instructions: "Answer ALL questions. Select the single best option.",
+    paperCode: `${officialCode} / PAPER 1`,
+    instructions: officialRubric[0],
     durationMinutes: Number(durationMinutes) || 30,
     questions: fallbackMcq.map((q) => ({
       ...q,
       topicTag: topic || subject,
       explanation: `Review the ${level} ${subject} syllabus principles for ${topic || subject} to reinforce this concept.`,
     })),
-  };
+  });
 };
 
 /* ─────────────────────────────────────────────────────────────────────────── *

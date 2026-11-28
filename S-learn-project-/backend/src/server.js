@@ -5,6 +5,7 @@ import connectDB, { pool } from "./config/db.js";
 import appDataRoutes from "./routes/appData.js";
 import blobUploadRoutes from "./routes/blobUpload.js";
 import examRoutes from "./routes/exam.js";
+import { getMLRuntimeStatus } from "./services/mlExamService.js";
 import { isDatabaseUnavailable } from "./utils/databaseErrors.js";
 
 const PORT = process.env.PORT || 5000;
@@ -42,6 +43,10 @@ app.get(["/", "/api"], (req, res) => {
 
 app.get(["/healthz", "/api/healthz"], (_req, res) => {
   res.json({ status: "ok" });
+});
+
+app.get(["/ml-status", "/api/ml-status"], (_req, res) => {
+  res.json(getMLRuntimeStatus());
 });
 
 app.get(["/readyz", "/api/readyz"], async (_req, res) => {
