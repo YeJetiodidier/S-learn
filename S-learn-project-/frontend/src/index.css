@@ -133,6 +133,11 @@ body {
   padding: 10px 12px;
 }
 
+html,
+body {
+  overflow-x: clip;
+}
+
 @media (max-width: 1024px) {
   :root {
     --base-font-size: 15px;
@@ -141,25 +146,28 @@ body {
 
 @media (max-width: 768px) {
   :root {
-    --base-font-size: 14px;
+    --base-font-size: 13px;
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 640px) {
   :root {
-    --base-font-size: 12px;
+    --base-font-size: 11.5px;
   }
 
   html, body {
     font-size: var(--base-font-size);
-  }
-
-  h1, h2, h3, h4, h5, h6, p, a, button, input, select, textarea, label, span, div {
-    font-size: inherit;
+    -webkit-text-size-adjust: 100%;
   }
 
   img, svg, canvas, video, iframe {
     max-width: 100%;
     height: auto;
+  }
+}
+
+@media (max-width: 420px) {
+  :root {
+    --base-font-size: 11px;
   }
 }

@@ -125,6 +125,43 @@ body {
     }
 }
 
+.exam-logo {
+    display: block;
+    margin: 0 auto 1rem;
+    width: 80px;
+    height: 80px;
+    object-fit: contain;
+}
+
+.exam-question-block {
+    margin-bottom: 1.5rem;
+}
+
+.exam-result {
+    text-align: center;
+}
+
+.exam-review-list {
+    text-align: left;
+    margin-top: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.exam-review-item {
+    padding: 0.85rem 1rem;
+    border-radius: 10px;
+}
+
+.exam-result-actions {
+    margin-top: 1.5rem;
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
 /* ── DEVICE RESPONSIVENESS ── */
 @media (max-width: 1024px) {
     .exam-setup,
@@ -138,32 +175,92 @@ body {
     .exam-setup,
     .exam-run,
     .exam-result {
-        margin: 1rem;
-        padding: 1.5rem;
+        margin: 0.85rem;
+        padding: 1.25rem;
     }
 
     .exam-title {
-        font-size: 1.7rem;
+        font-size: 1.45rem;
     }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 640px) {
     .exam-setup,
     .exam-run,
     .exam-result {
-        margin: 0.5rem;
-        padding: 1rem;
+        margin: 6px;
+        padding: 10px;
+        border-radius: 10px;
     }
 
-    .exam-title {
-        font-size: 1.4rem;
-        margin-bottom: 1rem;
+    .exam-logo {
+        width: 44px;
+        height: 44px;
+        margin-bottom: 6px;
+    }
+
+    .exam-title,
+    .exam-run h2,
+    .exam-result h2 {
+        font-size: 1.08rem;
+        margin-bottom: 8px;
+    }
+
+    .exam-form .exam-label {
+        margin-bottom: 8px;
+        font-size: 0.8rem;
+    }
+
+    .exam-input,
+    .exam-select {
+        padding: 7px 9px;
+        margin-top: 3px;
+        font-size: 0.84rem;
+        border-radius: 8px;
+    }
+
+    .exam-question-block {
+        margin-bottom: 10px;
+        font-size: 0.82rem;
+    }
+
+    .exam-run label {
+        margin-bottom: 4px;
+        font-size: 0.8rem;
+        line-height: 1.3;
+    }
+
+    .exam-result p {
+        font-size: 0.88rem;
+    }
+
+    .exam-review-list {
+        margin-top: 10px;
+        gap: 6px;
+    }
+
+    .exam-review-item {
+        padding: 7px 9px;
+        border-radius: 8px;
+    }
+
+    .exam-review-item p {
+        font-size: 0.78rem !important;
+        line-height: 1.3;
+    }
+
+    .exam-result-actions {
+        margin-top: 10px;
+        gap: 6px;
     }
 
     .primary-btn,
     .secondary-btn {
         width: 100%;
         margin-left: 0;
-        margin-bottom: 0.5rem;
+        margin-bottom: 6px;
+        padding: 8px 10px;
+        font-size: 0.84rem;
+        border-radius: 8px;
     }
 }

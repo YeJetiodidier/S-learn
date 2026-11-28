@@ -207,7 +207,7 @@ function ScienceLab() {
 
         {/* ADMIN TAB OPTIONS */}
         {isAdmin && (
-          <div style={{ display: "flex", gap: "10px", margin: "10px 0 20px" }}>
+          <div className="ss-admin-tabs" style={{ display: "flex", gap: "10px", margin: "10px 0 20px" }}>
             <button
               onClick={() => setActiveTab("all")}
               style={{

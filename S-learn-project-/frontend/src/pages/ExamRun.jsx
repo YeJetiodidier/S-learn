@@ -75,22 +75,16 @@ const ExamRun = () => {
     if (!normalizedQuestions.length) return <p>No exam data.</p>;
 
     return (
-        <div className="exam-run" style={{ padding: "2rem" }}>
+        <div className="exam-run">
             <img
                 src="/slearn_logo.png"
                 alt="S-Learn Logo"
-                style={{
-                    display: "block",
-                    margin: "0 auto 1rem",
-                    width: "80px",
-                    height: "80px",
-                    objectFit: "contain",
-                }}
+                className="exam-logo"
             />
             <h2>Exam</h2>
             <form onSubmit={handleSubmit}>
                 {normalizedQuestions.map((q, i) => (
-                    <div key={q.id} style={{ marginBottom: "1.5rem" }}>
+                    <div key={q.id} className="exam-question-block">
                         <p>
                             <strong>
                                 {i + 1}. {q.question_text}

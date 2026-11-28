@@ -354,76 +354,131 @@
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 640px) {
   .auth-container {
     padding: 10px;
-    align-items: flex-start;
+    align-items: center;
   }
 
   .auth-card {
-    max-width: 100%;
-    padding: 8px;
+    max-width: 340px;
+    padding: 4px;
   }
 
   .auth-avatar {
-    width: 68px;
-    height: 68px;
-    margin-bottom: 8px;
+    width: 48px;
+    height: 48px;
+    margin-bottom: 6px;
+    box-shadow: 0 0 0 2px white, 0 4px 12px rgba(109, 40, 217, 0.25);
   }
 
   .auth-avatar svg {
-    width: 34px;
-    height: 34px;
+    width: 24px;
+    height: 24px;
   }
 
   .auth-title {
-    font-size: 1.9rem;
-    margin-bottom: 18px;
+    font-size: 1.35rem;
+    margin-bottom: 12px;
   }
 
   .auth-input-group {
-    margin-bottom: 16px;
+    margin-bottom: 10px;
+  }
+
+  .auth-labels {
+    margin-bottom: 4px;
   }
 
   .auth-label {
-    font-size: 0.8rem;
+    font-size: 0.76rem;
+  }
+
+  .auth-forgot {
+    font-size: 0.72rem;
   }
 
   .auth-input-wrapper {
-    padding: 0 12px;
+    padding: 0 10px;
+    border-radius: 11px;
+  }
+
+  .auth-password-wrapper {
+    padding-right: 40px;
+  }
+
+  .auth-icon {
+    width: 16px;
+  }
+
+  .auth-separator {
+    height: 18px;
+    margin: 0 8px;
   }
 
   .auth-input {
-    padding: 13px 0;
-    font-size: 0.9rem;
+    padding: 9px 0;
+    font-size: 0.84rem;
+  }
+
+  .auth-password-toggle {
+    right: 6px;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+  }
+
+  .auth-password-toggle svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .password-strength {
+    margin-top: 5px;
+  }
+
+  .password-strength-label,
+  .password-match {
+    margin-top: 4px;
+    font-size: 0.7rem;
   }
 
   .auth-btn {
-    padding: 14px;
-    font-size: 0.98rem;
+    padding: 10px;
+    font-size: 0.88rem;
+    border-radius: 11px;
+    margin-top: 4px;
   }
 
   .auth-divider {
-    margin: 24px 0 18px;
-    font-size: 0.8rem;
+    margin: 14px 0 10px;
+    font-size: 0.74rem;
   }
 
   .auth-social-btn {
-    width: 48px;
-    height: 48px;
+    width: 38px;
+    height: 38px;
   }
 
   .auth-social-btn img, .auth-social-btn svg {
-    width: 22px;
-    height: 22px;
+    width: 18px;
+    height: 18px;
   }
 
   .auth-socials {
     gap: 10px;
-    margin-bottom: 28px;
+    margin-bottom: 14px;
   }
 
   .auth-footer {
-    font-size: 0.85rem;
+    font-size: 0.78rem;
+  }
+
+  .auth-alert-error,
+  .auth-alert-success {
+    padding: 7px 10px;
+    border-radius: 8px;
+    margin-top: 10px;
+    font-size: 0.76rem;
   }
 }

@@ -11,7 +11,7 @@ const Result = () => {
     const review = Array.isArray(result.review) ? result.review : [];
 
     return (
-        <div className="exam-result" style={{ padding: "2rem", textAlign: "center" }}>
+        <div className="exam-result">
             <h2>Exam Result</h2>
             {result.progressNotice && <StatusBanner type="info" message={result.progressNotice} />}
             {(result.subject || result.topic) && (
@@ -24,13 +24,12 @@ const Result = () => {
             </p>
 
             {review.length > 0 && (
-                <div style={{ textAlign: "left", marginTop: "1.5rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <div className="exam-review-list">
                     {review.map((item, index) => (
                         <div
                             key={item.id || index}
+                            className="exam-review-item"
                             style={{
-                                padding: "0.85rem 1rem",
-                                borderRadius: "10px",
                                 background: item.isCorrect ? "rgba(16, 185, 129, 0.14)" : "rgba(239, 68, 68, 0.14)",
                                 border: `1px solid ${item.isCorrect ? "rgba(16, 185, 129, 0.4)" : "rgba(239, 68, 68, 0.4)"}`,
                             }}
@@ -51,7 +50,7 @@ const Result = () => {
                 </div>
             )}
 
-            <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
+            <div className="exam-result-actions">
                 <button
                     className="secondary-btn"
                     onClick={() =>

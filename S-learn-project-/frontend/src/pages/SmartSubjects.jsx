@@ -372,12 +372,13 @@ function SmartSubjects() {
           <div className="db-section-header" style={{ width: "100%" }}>
             <div>
               <h1
-                className="db-section-title"
+                className="db-section-title ss-page-title"
                 style={{ fontSize: "1.8rem", margin: 0 }}
               >
                 Smart Subjects
               </h1>
               <p
+                className="ss-page-sub"
                 style={{
                   color: "#64748b",
                   fontSize: "0.9rem",
@@ -388,7 +389,7 @@ function SmartSubjects() {
               </p>
             </div>
             <button
-              className="upload-btn"
+              className="upload-btn ss-add-btn"
               style={{
                 width: "auto",
                 padding: "10px 24px",
@@ -412,7 +413,7 @@ function SmartSubjects() {
 
         {/* ADMIN TAB OPTIONS */}
         {isAdmin && (
-          <div style={{ display: "flex", gap: "10px", margin: "10px 0" }}>
+          <div className="ss-admin-tabs" style={{ display: "flex", gap: "10px", margin: "10px 0" }}>
             <button
               onClick={() => setActiveTab("all")}
               style={{
@@ -451,14 +452,14 @@ function SmartSubjects() {
             {/* SEARCH & FILTERS PANEL */}
             <section className="db-section">
               <div
-                className="db-stat-card"
+                className="db-stat-card ss-filter-card"
                 style={{
                   padding: "24px",
                   borderLeft: "4px solid #4f46e5",
                   background: "linear-gradient(to right, #ffffff, #f8faff)",
                 }}
               >
-                <div style={{ marginBottom: "16px" }}>
+                <div className="ss-filter-search-wrap" style={{ marginBottom: "16px" }}>
                   <input
                     type="text"
                     className="db-search"
@@ -474,6 +475,7 @@ function SmartSubjects() {
                   />
                 </div>
                 <div
+                  className="ss-filter-grid"
                   style={{
                     display: "grid",
                     gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
@@ -682,7 +684,7 @@ function SmartSubjects() {
                         }}
                       >
                         <div
-                          className="db-avatar"
+                          className="db-avatar ss-paper-icon"
                           style={{
                             fontSize: "1.5rem",
                             borderRadius: "16px",
@@ -890,7 +892,7 @@ function SmartSubjects() {
                       }}
                     >
                       <div
-                        className="db-avatar"
+                        className="db-avatar ss-paper-icon"
                         style={{
                           fontSize: "1.5rem",
                           borderRadius: "16px",
@@ -1046,7 +1048,7 @@ function SmartSubjects() {
           }}
         >
           <div
-            className="db-stat-card"
+            className="db-stat-card ss-upload-modal"
             style={{
               padding: "32px",
               maxWidth: "500px",

@@ -1205,37 +1205,40 @@
     height: auto;
     min-height: 100vh;
     overflow-y: auto;
-    padding-bottom: 75px; /* Space for the bottom fixed nav */
+    overflow-x: hidden;
+    padding-bottom: 18px;
   }
 
-  /* Make main component full width */
   .db-main {
     flex: none;
     width: 100%;
     padding: 10px;
+    gap: 12px;
     height: auto;
   }
 
-  /* Make Right Panel full width and stack it below or above elements */
   .db-right {
     width: 100%;
     min-width: 100%;
-    padding: 10px;
-    padding-bottom: 30px;
+    padding: 0 10px 14px;
+    gap: 10px;
   }
 
   .db-subject-card {
-    min-width: 240px;
+    min-width: 160px;
+    padding: 12px;
+    gap: 8px;
   }
 
   .db-stat-card, .db-profile-card, .db-quickstart {
-    padding: 14px 12px;
+    padding: 12px 10px;
+    border-radius: 14px;
   }
-  
+
   .db-avatar, .db-avatar-img {
-    width: 50px;
-    height: 50px;
-    font-size: 1.6rem;
+    width: 44px;
+    height: 44px;
+    font-size: 1.4rem;
   }
 
   .db-sidebar-backdrop {
@@ -1243,38 +1246,40 @@
     inset: 0;
     z-index: 1099;
     border: none;
-    background: rgba(15, 23, 42, 0.4);
+    background: rgba(15, 23, 42, 0.45);
   }
 
   .db-sidebar-toggle {
     position: fixed;
-    top: 0;
-    left: 0;
+    top: 8px;
+    left: 8px;
     z-index: 1200;
-    width: 46px;
-    height: 46px;
+    width: 34px;
+    height: 34px;
     border: none;
-    border-radius: 0 12px 12px 0;
+    border-radius: 10px;
     background: linear-gradient(135deg, #1e293b, #0f172a);
     color: #ffffff;
-    font-size: 1.2rem;
+    font-size: 1rem;
     cursor: pointer;
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.25);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.24);
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 0;
   }
 
   .db-sidebar {
     position: fixed;
     top: 0;
     left: 0;
-    width: min(250px, 78vw);
-    min-width: min(250px, 78vw);
+    width: min(210px, 68vw);
+    min-width: min(210px, 68vw);
     height: 100vh;
     max-height: none;
-    padding: 18px 14px 18px;
-    border-radius: 0 18px 18px 0;
+    padding: 14px 10px;
+    gap: 14px;
+    border-radius: 0 16px 16px 0;
     z-index: 1100;
     opacity: 0;
     pointer-events: none;
@@ -1301,22 +1306,22 @@
 
   .db-logo-img {
     display: block;
-    width: 110px;
-    margin: 0 auto 10px;
+    width: 82px;
+    margin: 0 auto 6px;
   }
 
   .db-nav {
     flex-direction: column;
     width: 100%;
-    gap: 8px;
+    gap: 4px;
   }
 
   .db-nav-item {
     flex-direction: row;
     justify-content: flex-start;
-    padding: 10px 12px;
-    gap: 10px;
-    font-size: 0.8rem;
+    padding: 8px 10px;
+    gap: 8px;
+    font-size: 0.82rem;
     text-align: left;
     width: 100%;
     background: transparent !important;
@@ -1325,30 +1330,34 @@
 
   .db-nav-item.active {
     color: #ffffff;
-    background: rgba(129, 140, 248, 0.18) !important;
+    background: rgba(129, 140, 248, 0.2) !important;
   }
 
   .db-nav-icon {
-    font-size: 1.1rem;
+    font-size: 0.95rem;
+    width: 18px;
   }
 
   .db-topbar {
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
+    padding-left: 38px;
   }
-  
+
   .db-search-wrap {
     order: 3;
     width: 100%;
     flex: none;
-    padding: 6px 14px; /* somewhat smaller padding */
+    padding: 5px 10px;
+    border-radius: 14px;
   }
 
-  /* Smart Subjects specific */
   .db-section-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 15px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 
   .db-list-item {
@@ -1363,118 +1372,503 @@
 
   .db-list-item > div:last-child {
     flex-direction: row;
-    gap: 10px;
-    margin-top: 10px;
+    gap: 8px;
+    margin-top: 6px;
   }
-  
-  .db-list-item button { /* Action buttons inside db-list-item */
+
+  .db-list-item button {
     flex: 1;
     text-align: center;
-    padding: 12px 10px !important;
+    padding: 7px 8px !important;
   }
 
-  /* Modals */
-  .ss-modal-overlay > div { /* db-stat-card in modal */
-    padding: 20px !important;
-    margin: 10px;
+  .ss-modal-overlay > div {
+    padding: 14px !important;
+    margin: 8px;
   }
 }
-/* ── STRICT MOBILE FIXES (< 480px) ── */
-@media (max-width: 480px) {
+
+/* ── ULTRA-COMPACT PHONE LAYOUT (<= 640px) ── */
+@media (max-width: 640px) {
   .db-layout {
     overflow-x: hidden;
+    padding-bottom: 12px;
   }
 
-  .db-main {
-    padding: 8px;
-    gap: 12px;
-  }
-
-  .db-section {
-    gap: 8px;
-  }
-
-  .db-topbar {
-    gap: 6px;
-  }
-
-  .db-search-wrap {
-    padding: 5px 10px;
-    border-radius: 18px;
-  }
-
-  .db-search {
-    font-size: 0.75rem;
-  }
-
-  .db-subject-card {
-    min-width: 140px;
-    padding: 12px;
-    gap: 8px;
-  }
-  
-  .db-card-img {
-    width: 52px;
-    height: 52px;
-    border-radius: 12px;
-  }
-
-  .db-card-label h3 {
-    font-size: 0.75rem;
-  }
-  
-  .db-card-label p {
-    font-size: 0.62rem;
-  }
-
-  .db-section-title {
+  .db-sidebar-toggle {
+    top: 6px;
+    left: 6px;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
     font-size: 0.9rem;
   }
 
-  .db-stat-card, .db-profile-card, .db-quickstart {
-    padding: 12px 10px;
-  }
-
-  .db-stat-val {
-    font-size: 0.95rem;
-  }
-
-  .db-stat-label,
-  .db-profile-sub,
-  .db-qs-sub,
-  .db-arrows,
-  .db-stat-year {
-    font-size: 0.65rem;
-  }
-
-  .db-nav-item {
-    padding: 8px 10px;
-    font-size: 0.72rem;
-  }
-
-  .db-nav-icon {
-    font-size: 0.95rem;
-    width: 18px;
+  .db-sidebar {
+    width: min(190px, 64vw);
+    min-width: min(190px, 64vw);
+    padding: 12px 8px;
+    gap: 10px;
   }
 
   .db-logo-img {
-    width: 90px;
+    width: 68px;
+    margin-bottom: 4px;
+  }
+
+  .db-nav-item {
+    padding: 6px 8px;
+    gap: 7px;
+    font-size: 0.78rem;
+    border-radius: 8px;
+  }
+
+  .db-nav-icon {
+    font-size: 0.88rem;
+    width: 16px;
+  }
+
+  .db-main {
+    padding: 7px 8px 6px;
+    gap: 8px;
+  }
+
+  .db-right {
+    padding: 0 8px 10px;
+    gap: 8px;
+  }
+
+  .db-section {
+    gap: 6px;
+  }
+
+  .db-topbar {
+    padding-left: 34px;
+    gap: 5px;
+    align-items: center;
+  }
+
+  .db-nav-arrows,
+  .db-topbar-actions {
+    gap: 4px;
+  }
+
+  .arrow-btn,
+  .icon-btn {
+    width: 26px;
+    height: 26px;
+    font-size: 0.78rem;
+    flex-shrink: 0;
+  }
+
+  .db-notif-badge {
+    top: -3px;
+    right: -3px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    font-size: 0.58rem;
+  }
+
+  .db-search-wrap {
+    padding: 4px 9px;
+    gap: 6px;
+    border-radius: 12px;
+    border-width: 1px;
+  }
+
+  .search-icon {
+    font-size: 0.8rem;
+  }
+
+  .db-search {
+    font-size: 0.78rem;
+    padding: 2px 0;
+    margin-bottom: 0;
+  }
+
+  .db-search-result {
+    gap: 7px;
+    padding: 7px 9px;
+  }
+
+  .db-search-badge {
+    font-size: 0.58rem;
+    padding: 2px 5px;
+  }
+
+  .db-search-result-text strong {
+    font-size: 0.76rem;
+  }
+
+  .db-search-result-text small,
+  .db-search-empty {
+    font-size: 0.68rem;
+  }
+
+  .db-notif-popover {
+    width: min(275px, calc(100vw - 16px));
+    border-radius: 12px;
+  }
+
+  .db-notif-header {
+    padding: 8px 10px;
+    font-size: 0.8rem;
+  }
+
+  .db-notif-link {
+    padding: 2px 5px;
+    font-size: 0.68rem;
+  }
+
+  .db-notif-item {
+    padding: 7px 9px;
+    gap: 7px;
+  }
+
+  .db-notif-icon {
+    font-size: 0.88rem;
+  }
+
+  .db-notif-item strong {
+    font-size: 0.76rem;
+  }
+
+  .db-notif-item small,
+  .db-notif-empty {
+    font-size: 0.68rem;
+  }
+
+  /* Inline status banners */
+  .ui-status-banner {
+    padding: 7px 9px;
+    gap: 6px;
+    border-radius: 8px;
+    font-size: 0.76rem;
+    margin-bottom: 4px;
+  }
+
+  /* Compact PWA banner & modal */
+  .pwa-install-banner {
+    padding: 7px 9px;
+    gap: 7px;
+    border-radius: 10px;
+    flex-wrap: nowrap;
+  }
+
+  .pwa-install-banner-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+  }
+
+  .pwa-install-banner-text {
+    min-width: 0;
+    gap: 1px;
+  }
+
+  .pwa-install-banner-text strong {
+    font-size: 0.76rem;
+    line-height: 1.2;
+  }
+
+  .pwa-install-banner-text span {
+    font-size: 0.65rem;
+    line-height: 1.2;
+  }
+
+  .pwa-install-banner-actions {
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .pwa-install-btn {
+    padding: 5px 8px;
+    font-size: 0.68rem;
+    border-radius: 7px;
+  }
+
+  .pwa-dismiss-btn {
+    padding: 3px 5px;
+    font-size: 0.74rem;
+  }
+
+  .pwa-modal-card {
+    padding: 14px;
+    border-radius: 14px;
+    gap: 10px;
+  }
+
+  .pwa-modal-header {
+    gap: 9px;
+  }
+
+  .pwa-modal-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+  }
+
+  .pwa-modal-title {
+    font-size: 0.9rem;
+  }
+
+  .pwa-modal-sub {
+    font-size: 0.72rem;
+  }
+
+  .pwa-modal-steps {
+    padding-left: 16px;
+    gap: 6px;
+    font-size: 0.76rem;
+  }
+
+  .pwa-modal-close-btn {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    border-radius: 9px;
+  }
+
+  /* Subject Sets: fit all 4 cards cleanly in a 2x2 phone grid */
+  .db-section-title {
+    font-size: 0.88rem;
+  }
+
+  .db-arrows {
+    display: none;
+  }
+
+  .db-subject-cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    overflow-x: visible;
+    padding-bottom: 0;
+  }
+
+  .db-subject-card {
+    min-width: 0;
+    width: 100%;
+    padding: 8px 6px;
+    gap: 5px;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
+  }
+
+  .db-card-img {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+  }
+
+  .db-card-label h3 {
+    font-size: 0.78rem;
+    margin-bottom: 1px;
+  }
+
+  .db-card-label p {
+    font-size: 0.65rem;
+    line-height: 1.2;
+  }
+
+  .db-card-heart {
+    top: 5px;
+    right: 5px;
+    width: 20px;
+    height: 20px;
+    font-size: 0.66rem;
+  }
+
+  /* Progress chart & stat card */
+  .db-stat-card {
+    padding: 9px 10px !important;
+    border-radius: 12px !important;
+  }
+
+  .stat-chart {
+    height: 68px;
+  }
+
+  .db-chart-wrap {
+    gap: 6px;
+  }
+
+  .db-chart-summary {
+    gap: 8px;
+    font-size: 0.72rem;
+  }
+
+  .db-chart-legend {
+    gap: 10px;
+    font-size: 0.66rem;
+  }
+
+  .db-chart-legend i {
+    width: 7px;
+    height: 7px;
+  }
+
+  .db-chart-empty {
+    padding: 8px 6px;
+    gap: 4px;
+  }
+
+  .db-chart-empty-title {
+    font-size: 0.82rem;
+  }
+
+  .db-chart-empty-sub {
+    font-size: 0.7rem;
+  }
+
+  .db-chart-cta {
+    margin-top: 2px;
+    padding: 6px 12px;
+    font-size: 0.74rem;
+    border-radius: 8px;
+  }
+
+  /* Profile & Quick Start */
+  .db-profile-card {
+    padding: 9px 10px;
+    border-radius: 12px;
+    gap: 3px;
+  }
+
+  .db-avatar,
+  .db-avatar-img {
+    width: 36px;
+    height: 36px;
+    font-size: 1.25rem;
+  }
+
+  .db-profile-name {
+    font-size: 0.84rem;
+  }
+
+  .db-profile-sub,
+  .db-stat-label,
+  .db-stat-year {
+    font-size: 0.66rem;
+  }
+
+  .db-profile-stats {
+    gap: 14px;
+    margin-top: 4px;
+    padding-top: 6px;
+  }
+
+  .db-stat-val {
+    font-size: 0.94rem;
+  }
+
+  .db-quickstart {
+    padding: 9px 10px;
+    border-radius: 12px;
+    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .db-qs-title {
+    grid-column: 1 / -1;
+    font-size: 0.84rem;
+    margin: 0 0 2px;
+  }
+
+  .db-qs-item {
+    padding: 6px 7px;
+    gap: 6px;
+    border-radius: 9px;
+    min-width: 0;
+  }
+
+  .db-qs-icon {
+    width: 26px;
+    height: 26px;
+    font-size: 0.9rem;
+    border-radius: 7px;
+    flex-shrink: 0;
+  }
+
+  .db-qs-label {
+    font-size: 0.74rem;
+    line-height: 1.2;
+  }
+
+  .db-qs-sub {
+    font-size: 0.62rem;
+    line-height: 1.2;
+  }
+
+  /* Smart Subjects compact header, 2x2 filter grid, paper rows & modal */
+  .ss-page-title {
+    font-size: 1.05rem !important;
+  }
+
+  .ss-page-sub {
+    font-size: 0.72rem !important;
+    margin-top: 1px !important;
+  }
+
+  .ss-add-btn {
+    padding: 6px 10px !important;
+    font-size: 0.74rem !important;
+    border-radius: 8px !important;
+  }
+
+  .ss-admin-tabs {
+    gap: 6px !important;
+    margin: 4px 0 !important;
+  }
+
+  .ss-admin-tabs button {
+    padding: 5px 10px !important;
+    font-size: 0.72rem !important;
+  }
+
+  .ss-filter-search-wrap {
+    margin-bottom: 8px !important;
+  }
+
+  .ss-filter-card .db-search {
+    padding: 6px 8px !important;
+    font-size: 0.76rem !important;
+    border-radius: 8px !important;
+  }
+
+  .ss-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+  }
+
+  .ss-filter-grid .db-stat-label {
+    margin-bottom: 3px !important;
+    font-size: 0.64rem !important;
   }
 
   .db-subject-list {
-    gap: 10px !important;
+    gap: 7px !important;
   }
 
   .db-list-item {
     flex-direction: column !important;
     align-items: flex-start !important;
-    gap: 12px !important;
-    padding: 14px 16px !important;
+    gap: 6px !important;
+    padding: 8px 10px !important;
+    border-radius: 10px !important;
   }
 
   .db-list-item > div:first-child {
     width: 100% !important;
-    gap: 12px !important;
+    gap: 8px !important;
+  }
+
+  .ss-paper-icon {
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 0.9rem !important;
+    border-radius: 8px !important;
   }
 
   .db-item-info {
@@ -1482,42 +1876,102 @@
     min-width: 0;
   }
 
+  .db-item-info > div {
+    gap: 6px !important;
+    margin-bottom: 2px !important;
+    flex-wrap: wrap;
+  }
+
   .db-item-info h3 {
-    font-size: 0.9rem !important;
+    font-size: 0.82rem !important;
+  }
+
+  .db-item-info span {
+    padding: 2px 6px !important;
+    font-size: 0.6rem !important;
   }
 
   .db-item-info p {
-    font-size: 0.7rem !important;
-    line-height: 1.4;
+    font-size: 0.68rem !important;
+    line-height: 1.25;
   }
 
   .db-list-item > div:last-child {
     width: 100% !important;
     display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 8px !important;
+    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)) !important;
+    gap: 6px !important;
+    margin-top: 2px !important;
   }
 
   .db-list-item button {
     width: 100% !important;
-    padding: 9px 10px !important;
+    padding: 5px 7px !important;
     font-size: 0.72rem !important;
+    border-radius: 7px !important;
   }
 
-  .arrow-btn, .icon-btn {
-    width: 28px;
-    height: 28px;
-    font-size: 0.8rem;
-    flex-shrink: 0;
+  .ss-upload-modal {
+    padding: 12px !important;
+    border-radius: 14px !important;
   }
 
-  .db-sidebar-toggle {
-    width: 40px;
-    height: 40px;
-    font-size: 1rem;
+  .ss-upload-modal input {
+    padding: 7px 9px !important;
+    font-size: 0.78rem !important;
+    border-radius: 8px !important;
   }
 
-  .stat-chart {
-    height: 82px;
+  /* Settings notifications feed & composer */
+  .cfg-updates-box {
+    margin-top: 12px;
+    padding-top: 10px;
+  }
+
+  .cfg-updates-header {
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .cfg-updates-list {
+    gap: 6px;
+  }
+
+  .cfg-update-card {
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
+
+  .cfg-update-badge {
+    font-size: 0.6rem;
+    padding: 1px 6px;
+  }
+
+  .cfg-update-time {
+    font-size: 0.66rem;
+  }
+
+  .cfg-update-title {
+    font-size: 0.82rem;
+    margin-bottom: 2px;
+  }
+
+  .cfg-update-msg {
+    font-size: 0.72rem;
+  }
+
+  .cfg-mini-btn {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+    border-radius: 7px;
+  }
+
+  .cfg-composer {
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 10px;
+    gap: 8px;
   }
 }
