@@ -64,3 +64,43 @@ export const apiRequest = (path, options) =>
 
 export const backendRequest = (path, options) =>
   requestJson(`${requireBackendUrl(BACKEND_URL)}${path}`, options);
+
+export const backendFormRequest = async (path, formData) => {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Please sign in to continue.");
+  const idToken = await user.getIdToken();
+  let response;
+  try {
+    response = await fetch(`${requireBackendUrl(BACKEND_URL)}${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: formData,
+    });
+  } catch (networkError) {
+    const err = new Error(getFriendlyErrorMessage(networkError));
+    err.cause = networkError;
+    throw err;
+  }
+  const text = await response.text();
+  let payload = {};
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = {};
+    }
+  }
+  if (!response.ok) {
+    const err = new Error(
+      getFriendlyErrorMessage(
+        { status: response.status, message: payload.error || "" },
+        "We couldn't complete that request. Please try again.",
+      ),
+    );
+    err.status = response.status;
+    throw err;
+  }
+  return payload;
+};

@@ -10,6 +10,11 @@ import Settings from "./pages/Settings";
 import LoadingScreen, { LoadingIndicator } from "./pages/LoadingScreen";
 import ForgotPassword from "./pages/ForgotPassword";
 import ExamSetup from "./pages/ExamSetup";
+import ModelAnswersPage from "./pages/ModelAnswersPage";
+import MarkAnswersPage from "./pages/MarkAnswersPage";
+import PreGcePage from "./pages/PreGcePage";
+import QuizEnginePage from "./pages/QuizEnginePage";
+import LearningPage from "./pages/LearningPage";
 import ExamRun from "./pages/ExamRun";
 import Result from "./pages/Result";
 import ResetPassword from "./pages/ResetPassword";
@@ -44,7 +49,12 @@ function App() {
         <Route path="/smartsubjects" element={<RequireAuth><SmartSubjects /></RequireAuth>} />
         <Route path="/sciencelab" element={<RequireAuth><ScienceLab /></RequireAuth>} />
         <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
+        <Route path="/learn" element={<RequireAuth><LearningPage /></RequireAuth>} />
         <Route path="/exam" element={<RequireAuth><ExamSetup /></RequireAuth>} />
+        <Route path="/exam/model-answers" element={<RequireAuth><ModelAnswersPage /></RequireAuth>} />
+        <Route path="/exam/mark-answers" element={<RequireAuth><MarkAnswersPage /></RequireAuth>} />
+        <Route path="/exam/pre-gce" element={<RequireAuth><PreGcePage /></RequireAuth>} />
+        <Route path="/exam/quiz-engine" element={<RequireAuth><QuizEnginePage /></RequireAuth>} />
         <Route path="/exam/run" element={<RequireAuth><ExamRun /></RequireAuth>} />
         <Route path="/exam/result" element={<RequireAuth><Result /></RequireAuth>} />
       </Routes>

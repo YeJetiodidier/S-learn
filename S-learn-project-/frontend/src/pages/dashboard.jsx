@@ -351,6 +351,14 @@ function Dashboard() {
         action: "/schedule",
       },
       {
+        id: "learn",
+        title: "Learn & Notes",
+        desc: "Auto-generated syllabus notes",
+        img: "/books_card.png",
+        gradient: "linear-gradient(135deg, #2563eb, #38bdf8)",
+        action: "/learn",
+      },
+      {
         id: "exam",
         title: "Exam",
         desc:

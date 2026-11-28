@@ -33,6 +33,8 @@ const Sidebar = () => {
 
   const navItems = [
     { icon: "🏠", label: "Dashboard", action: () => handleNavigate("/dashboard"), active: location.pathname === "/dashboard" },
+    { icon: "📖", label: "Learn & Notes", action: () => handleNavigate("/learn"), active: location.pathname.startsWith("/learn") },
+    { icon: "🎓", label: "Practice Exam", action: () => handleNavigate("/exam"), active: location.pathname.startsWith("/exam") },
     { icon: "📚", label: "Smart Subjects", action: () => handleNavigate("/smartsubjects"), active: location.pathname.startsWith("/smartsubjects") },
     { icon: "🔬", label: "Science Lab", action: () => handleNavigate("/sciencelab"), active: location.pathname === "/sciencelab" },
     { icon: "📅", label: "Schedule", action: () => handleNavigate("/schedule"), active: location.pathname === "/schedule" },
