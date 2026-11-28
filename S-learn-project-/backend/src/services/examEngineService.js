@@ -6,6 +6,10 @@ import {
   assistWithLocalML,
   getOfficialGceCode,
 } from "./mlExamService.js";
+import {
+  buildConcreteFallbackNotes,
+  buildDirectQuestionExplanation,
+} from "./concreteNotesEngine.js";
 
 const parseJsonSafe = (raw) => {
   if (!raw) return null;
@@ -116,6 +120,54 @@ const extractReadableTextFromPdfBuffer = (buffer) => {
     .slice(0, 120)
     .join(" ");
   return extracted.slice(0, 6000);
+};
+
+const enrichQuestionExplanations = async (questions, { level = "O-Level", subject = "" } = {}) => {
+  if (!Array.isArray(questions) || !questions.length) return [];
+  const missing = questions.filter((q) => !String(q.explanation || "").trim());
+
+  if (missing.length > 0 && (process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY)) {
+    try {
+      const payload = missing.slice(0, 20).map((q) => ({
+        id: q.id,
+        question: q.question_text,
+        correctAnswer: q.answer,
+        options: q.options || [],
+      }));
+      const ai = await callLLMJson({
+        systemPrompt:
+          "You are an expert Cameroon GCE teacher. For each multiple-choice question, write a clear, concrete 2-3 sentence explanation explaining WHY the correct answer is right (showing the formula, calculation, definition, or reasoning). Never mention 'the student', never say 'review the syllabus', and never say 'go verify'. Return strictly valid JSON.",
+        userPrompt: `Provide concrete explanations for these ${level} ${subject} questions:\n${JSON.stringify(payload)}\n\nReturn JSON: { "explanations": [{ "id": "...", "explanation": "..." }] }`,
+        maxTokens: 2400,
+      });
+      if (ai && Array.isArray(ai.explanations)) {
+        const expMap = new Map(
+          ai.explanations
+            .filter((e) => e && e.id && e.explanation)
+            .map((e) => [String(e.id), String(e.explanation).trim()]),
+        );
+        questions = questions.map((q) =>
+          q.explanation?.trim()
+            ? q
+            : { ...q, explanation: expMap.get(String(q.id)) || "" },
+        );
+      }
+    } catch (err) {
+      console.warn("Question explanation enrichment skipped:", err.message);
+    }
+  }
+
+  return questions.map((q) => ({
+    ...q,
+    explanation:
+      String(q.explanation || "").trim() ||
+      buildDirectQuestionExplanation({
+        question_text: q.question_text,
+        answer: q.answer,
+        options: q.options,
+        subject,
+      }),
+  }));
 };
 
 /* ─────────────────────────────────────────────────────────────────────────── *
@@ -605,6 +657,11 @@ export const generatePreGceSimulation = async ({
   });
 
   if (mlQuestions.length >= safeCount && mlQuestions.meta?.subjectMatched) {
+    const sliced = mlQuestions.slice(0, safeCount);
+    const enriched =
+      safePaperType === "paper1"
+        ? await enrichQuestionExplanations(sliced, { level, subject })
+        : sliced;
     return attachGceBoardMeta({
       source: "ml",
       engine: "Trained ML Model",
@@ -616,7 +673,7 @@ export const generatePreGceSimulation = async ({
       instructions: officialRubric[0],
       durationMinutes: Number(durationMinutes) || 30,
       paperKeywords: mlQuestions.meta?.paperKeywords || [],
-      questions: mlQuestions.slice(0, safeCount),
+      questions: enriched,
     });
   }
 
@@ -820,6 +877,10 @@ export const generateFreshQuiz = async ({
   });
 
   if (mlQuiz.length >= safeCount && mlQuiz.meta?.subjectMatched) {
+    const enrichedQuiz = await enrichQuestionExplanations(mlQuiz.slice(0, safeCount), {
+      level,
+      subject,
+    });
     return {
       source: "ml",
       engine: "Trained ML Model",
@@ -827,13 +888,10 @@ export const generateFreshQuiz = async ({
       subject,
       topic,
       difficulty,
-      quizTitle: `${subject}: ${topic} (ML Syllabus Quiz)`,
-      questions: mlQuiz.slice(0, safeCount).map((q) => ({
+      quizTitle: `${subject}: ${topic} (GCE Syllabus Quiz)`,
+      questions: enrichedQuiz.map((q) => ({
         ...q,
         concept: q.concept || q.topicTag || topic,
-        explanation:
-          q.explanation ||
-          `Verified ${level} ${subject} answer from S-Learn's trained GCE corpus (${q.source || "ML"}).`,
       })),
     };
   }
@@ -944,7 +1002,7 @@ export const generateTopicNotes = async ({
   const mlKeywords = Array.isArray(mlContext?.paper_keywords) ? mlContext.paper_keywords : [];
 
   const systemPrompt =
-    "You are an expert Cameroon GCE teacher and textbook author for S-Learn. Generate comprehensive, structured, student-friendly, exam-ready study notes that thoroughly cover every syllabus concept and learning objective. Return strictly valid JSON.";
+    "You are an authoritative Cameroon GCE textbook author. Write concrete, factual, textbook-grade study notes packed with exact definitions, laws, formulas, classifications, OHADA entries/chemical equations/dates, and fully worked step-by-step examples. STRICT RULES: Never refer to 'the student' or 'learners', never write 'examiners test you', and never tell anyone to 'go verify', 'review your textbook', or 'study the syllabus'. Deliver the complete concrete knowledge directly. Return strictly valid JSON.";
 
   const mlGroundingSnippet = mlRelatedQuestions.length
     ? `\n- Real Exam Questions Retrieved from S-Learn's Trained ML Model (use these to keep notes exam-focused):\n${mlRelatedQuestions
@@ -1033,61 +1091,17 @@ Return valid JSON in this exact shape:
     console.warn("Notes AI generation failed, using structured syllabus fallback:", err.message);
   }
 
-  // Rich structured educational fallback built directly from the syllabus concepts & objectives.
-  const keyDefinitions = (cleanConcepts.length ? cleanConcepts : [topicTitle]).map((concept) => ({
-    term: concept.charAt(0).toUpperCase() + concept.slice(1),
-    definition: `A core ${level} ${subject} syllabus concept under "${topicTitle}" that students must define accurately and apply in structured GCE questions.`,
-  }));
-
-  const sections = (
-    cleanObjectives.length
-      ? cleanObjectives
-      : [`Master the core principles of ${topicTitle}`, `Apply ${topicTitle} to GCE exam problems`]
-  ).map((objective, idx) => ({
-    heading: `${idx + 1}. ${objective}`,
-    content: `In ${level} ${subject}, this objective focuses on mastering "${objective.toLowerCase()}". Examiners test both your conceptual clarity and your ability to connect this idea to practical real-world or experimental examples under ${moduleTitle || subject}.`,
-    bulletPoints: [
-      `Learn the standard syllabus definition and terminology tied to ${cleanConcepts[idx % Math.max(1, cleanConcepts.length)] || topicTitle}.`,
-      `Be ready to compare, classify, or demonstrate relationships clearly in structured questions.`,
-      `Practice applying this principle to past GCE questions under timed conditions.`,
-    ],
-    workedExample:
-      idx === 0
-        ? `Exam Approach Example: When asked to "${objective}", begin with a crisp 1-sentence syllabus definition, follow with 2–3 distinct explained points, and close with a concrete ${subject} illustration.`
-        : "",
-  }));
-
-  return {
-    source: "fallback",
-    generatedAt: new Date().toISOString(),
+  // Concrete textbook-grade fallback built from curated GCE content & real ML facts (zero meta-text).
+  return buildConcreteFallbackNotes({
     level,
     subject,
     moduleTitle,
     topicTitle,
-    readingTimeMinutes: Math.max(4, sections.length * 2),
-    overview: `These structured ${level} ${subject} study notes guide you through "${topicTitle}"${moduleTitle ? ` (${moduleTitle})` : ""}, covering every syllabus concept and learning objective required for exam mastery.`,
-    keyDefinitions,
-    sections,
-    examTips: [
-      `Always use exact ${level} ${subject} syllabus keywords when defining terms in "${topicTitle}".`,
-      "Match the number of points in your answer to the marks allocated in the question.",
-      "Follow up immediately with the Quiz Engine to test recall without notes.",
-    ],
-    quickCheck: [
-      ...mlRelatedQuestions.slice(0, 2).map((q) => ({
-        question: q.question_text,
-        answer: `${q.answer}${q.explanation ? ` — ${q.explanation}` : ""}`,
-      })),
-      {
-        question: `What are the key ideas covered under "${topicTitle}" in ${level} ${subject}?`,
-        answer: cleanConcepts.length
-          ? `The core syllabus concepts are: ${cleanConcepts.join(", ")}.`
-          : `Core principles, definitions, and exam applications of ${topicTitle}.`,
-      },
-    ],
-    mlKeywords,
+    concepts: cleanConcepts,
+    objectives: cleanObjectives,
     mlRelatedQuestions,
-  };
+    mlKeywords,
+  });
 };
 
 /* ─────────────────────────────────────────────────────────────────────────── *
@@ -1120,7 +1134,7 @@ export const assistStudentLearning = async ({
   const paperKeywords = Array.isArray(mlData?.paper_keywords) ? mlData.paper_keywords : [];
 
   const systemPrompt =
-    "You are S-Learn's friendly Cameroon GCE Study Tutor powered by our trained ML exam model. Explain concepts clearly, step-by-step, using the retrieved exam corpus context. Return strictly valid JSON.";
+    "You are an expert Cameroon GCE teacher. Answer the question directly with concrete facts, exact definitions, equations, and clear step-by-step reasoning. NEVER refer to 'the student', NEVER say 'go verify', and NEVER tell anyone to check another resource. Return strictly valid JSON.";
 
   const userPrompt = `
 Student Question (${level} · ${effectiveSubject}${topic ? ` · ${topic}` : ""}):
@@ -1164,11 +1178,19 @@ Return valid JSON:
     console.warn("ML Study Assistant LLM synthesis failed, returning pure ML retrieval:", err.message);
   }
 
-  // Pure Trained ML Model response when offline / LLM unavailable
+  // Pure Trained ML Model concrete explanation when offline / LLM unavailable
   const topMatch = relatedQuestions[0];
   const synthesized = topMatch
-    ? `Based on S-Learn's trained ${effectiveSubject} model (${level}), the closest exam concept relates to: "${topMatch.question_text}"\n\nKey Exam Answer: ${topMatch.answer}.${topMatch.explanation ? `\n\nExplanation: ${topMatch.explanation}` : ""}`
-    : `Your question maps to ${predictedSubject} (${level}). Review the syllabus definitions and worked examples for ${topic || effectiveSubject}, then test your understanding using the practice questions below.`;
+    ? `${topMatch.question_text}\n\nExplanation: ${
+        topMatch.explanation ||
+        buildDirectQuestionExplanation({
+          question_text: topMatch.question_text,
+          answer: topMatch.answer,
+          options: topMatch.options,
+          subject: effectiveSubject,
+        })
+      }`
+    : `${effectiveSubject} (${level}): ${topic || cleanQuery} is governed by formal definitions, governing equations, and systematic application of ${effectiveSubject} principles.`;
 
   return {
     engine: "Trained ML Model",
@@ -1178,8 +1200,10 @@ Return valid JSON:
     topic,
     query: cleanQuery,
     answer: synthesized,
-    keyTakeaways: relatedQuestions.slice(0, 3).map((item) => `${item.answer} (${item.topic})`),
-    examTip: `Connect your answer to official ${level} ${effectiveSubject} marking keywords and check the related exam questions below.`,
+    keyTakeaways: relatedQuestions.slice(0, 3).map((item) =>
+      item.explanation ? `${item.answer}: ${item.explanation}` : `${item.answer} (${item.topic})`,
+    ),
+    examTip: `State the governing ${effectiveSubject} definition or formula first, substitute known values with exact SI/OHADA units, and conclude with the final result clearly underlined.`,
     paperKeywords,
     relatedQuestions,
   };

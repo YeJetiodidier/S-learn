@@ -1,11 +1,18 @@
 {
   "schema_version": 2,
-  "trained_at": "2026-11-28T02:38:01.194249+00:00",
+  "trained_at": "2026-11-28T04:05:09.733740+00:00",
   "model_file": "/run/media/anosvoaldigoad/anime/disk d/projects/s-learn 2.1/S-learn-project-/backend/ml_models/slearn_exam_model.joblib",
-  "model_size_mb": 5.05,
-  "local_papers_indexed": 3,
+  "model_size_mb": 5.09,
+  "runtime_model_file": "/run/media/anosvoaldigoad/anime/disk d/projects/s-learn 2.1/S-learn-project-/backend/ml_models/slearn_exam_model_runtime.json.gz",
+  "runtime_model_size_mb": 2.43,
+  "local_papers_indexed": 14,
   "local_paper_subjects": {
-    "Chemistry": 3
+    "Chemistry": 3,
+    "Geography": 2,
+    "Logic": 1,
+    "English": 1,
+    "General": 6,
+    "Physics": 1
   },
   "online_questions_indexed": 5642,
   "dataset_subject_counts": {
@@ -32,6 +39,14 @@
   "subject_years": {
     "Chemistry": [
       2009,
+      2025
+    ],
+    "Geography": [
+      2022,
+      2022
+    ],
+    "General": [
+      2023,
       2025
     ]
   },
