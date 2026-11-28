@@ -6,6 +6,7 @@ import ExamModeModal from "../components/ExamModeModal";
 import { QuizEngineIcon } from "../components/ExamModeIcons";
 import {
   ACADEMIC_LEVELS,
+  GCE_STREAMS,
   getSubjectsForLevel,
   getTopicsForSubject,
 } from "../data/syllabusCatalog";
@@ -42,7 +43,8 @@ function QuizEnginePage() {
   const location = useLocation();
 
   const [level, setLevel] = useState(location.state?.level || "O-Level");
-  const levelSubjects = getSubjectsForLevel(level);
+  const [stream, setStream] = useState(location.state?.stream || "All");
+  const levelSubjects = getSubjectsForLevel(level, stream);
   const [subject, setSubject] = useState(
     location.state?.subject || levelSubjects[0]?.name || "Accounting",
   );
@@ -67,10 +69,19 @@ function QuizEnginePage() {
 
   const handleLevelChange = (nextLevel) => {
     setLevel(nextLevel);
-    const nextSubjects = getSubjectsForLevel(nextLevel);
+    const nextSubjects = getSubjectsForLevel(nextLevel, stream);
     const nextSub = nextSubjects[0]?.name || "";
     setSubject(nextSub);
     const nextTopics = getTopicsForSubject(nextLevel, nextSub);
+    setTopic(nextTopics[0]?.title || "General");
+  };
+
+  const handleStreamChange = (nextStream) => {
+    setStream(nextStream);
+    const nextSubjects = getSubjectsForLevel(level, nextStream);
+    const nextSub = nextSubjects[0]?.name || "";
+    setSubject(nextSub);
+    const nextTopics = getTopicsForSubject(level, nextSub);
     setTopic(nextTopics[0]?.title || "General");
   };
 
@@ -240,7 +251,16 @@ function QuizEnginePage() {
 
             <div className="pe-form-grid">
               <label className="pe-field">
-                <span>Subject</span>
+                <span>GCE Stream</span>
+                <select value={stream} onChange={(e) => handleStreamChange(e.target.value)}>
+                  {GCE_STREAMS.map((st) => (
+                    <option key={st.id} value={st.id}>{st.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="pe-field">
+                <span>Subject ({levelSubjects.length})</span>
                 <input
                   type="text"
                   list="quiz-subjects"
@@ -250,7 +270,7 @@ function QuizEnginePage() {
                 />
                 <datalist id="quiz-subjects">
                   {levelSubjects.map((s) => (
-                    <option key={s.id} value={s.name} />
+                    <option key={s.id} value={s.name}>{s.code} · {s.stream}</option>
                   ))}
                 </datalist>
               </label>
@@ -331,9 +351,12 @@ function QuizEnginePage() {
           <section className="pe-card pe-quiz-runner">
             <div className="pe-quiz-head">
               <div>
-                <span className="pe-mode-pill">
-                  {quiz.level} · {quiz.subject} · {quiz.difficulty}
-                </span>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                  <span className="pe-mode-pill">
+                    {quiz.level} · {quiz.subject} · {quiz.difficulty}
+                  </span>
+                  {quiz.engine && <span className="pe-topic-chip">🤖 {quiz.engine}</span>}
+                </div>
                 <h2>{quiz.quizTitle}</h2>
               </div>
               <div className="pe-quiz-stats">

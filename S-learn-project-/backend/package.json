@@ -9,7 +9,10 @@
     "db:import:firestore": "node scripts/migrate_firestore_to_neon.js",
     "db:import:legacy-postgres": "node scripts/migrate_legacy_postgres.js",
     "db:import:files": "node scripts/migrate_documents_to_blob.js",
-    "db:replace:papers": "node scripts/replace_papers_from_documents.js"
+    "db:replace:papers": "node scripts/replace_papers_from_documents.js",
+    "ml:fetch": ".venv-ml/bin/python scripts/fetch_ml_datasets.py",
+    "ml:train": ".venv-ml/bin/python ml_exam_generator.py --train",
+    "ml:verify": ".venv-ml/bin/python ml_exam_generator.py --verify"
   },
   "keywords": [],
   "author": "",

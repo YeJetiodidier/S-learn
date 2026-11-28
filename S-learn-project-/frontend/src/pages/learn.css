@@ -163,7 +163,265 @@
   color: #0f172a;
 }
 
-/* Subjects Grid */
+/* Stream Filter Pills */
+.lrn-stream-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lrn-stream-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lrn-stream-pill:hover {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.lrn-stream-pill.active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #ffffff;
+}
+
+.lrn-stream-count {
+  font-size: 0.74rem;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.lrn-stream-pill.active .lrn-stream-count {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+/* Subjects List View */
+.lrn-subjects-list {
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+}
+
+.lrn-subject-row {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid #eef2f6;
+  background: transparent;
+  padding: 15px 18px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.lrn-subject-row:last-child {
+  border-bottom: none;
+}
+
+.lrn-subject-row:hover {
+  background: #f5f9ff;
+}
+
+.lrn-subject-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.lrn-subject-row-title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lrn-stream-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.lrn-stream-badge.stream-science {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.lrn-stream-badge.stream-arts {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+.lrn-stream-badge.stream-commercial {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.lrn-row-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.lrn-row-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 112px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.lrn-row-chevron {
+  font-size: 1.35rem;
+  color: #94a3b8;
+  line-height: 1;
+}
+
+.lrn-paper-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.lrn-paper-chip {
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.lrn-paper-btn {
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.lrn-paper-btn:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+/* ── ML Study Assistant Panel ── */
+.lrn-ml-assistant {
+  background: #ffffff;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 4px 18px rgba(37, 99, 235, 0.06);
+}
+
+.lrn-ml-assistant-head h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.lrn-ml-assistant-head p {
+  font-size: 0.88rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.lrn-ml-form {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.lrn-ml-form input {
+  flex: 1;
+  min-width: 220px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 0.93rem;
+}
+
+.lrn-ml-form input:focus {
+  outline: none;
+  border-color: #2563eb;
+  background: #ffffff;
+}
+
+.lrn-ml-quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lrn-chip-btn {
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.lrn-chip-btn:hover:not(:disabled) {
+  background: #dbeafe;
+}
+
+.lrn-ml-response {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lrn-ml-response-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lrn-ml-related {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.lrn-ml-related h4 {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+/* Subjects Grid (kept as utility) */
 .lrn-subjects-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
@@ -833,12 +1091,71 @@
 
 [data-theme="dark"] .lrn-search-box,
 [data-theme="dark"] .lrn-subject-card,
+[data-theme="dark"] .lrn-subjects-list,
+[data-theme="dark"] .lrn-stream-pill,
 [data-theme="dark"] .lrn-module-card,
 [data-theme="dark"] .lrn-custom-card,
 [data-theme="dark"] .lrn-notes-article,
 [data-theme="dark"] .lrn-empty-state {
   background: #1e293b;
   border-color: #334155;
+}
+
+[data-theme="dark"] .lrn-subject-row {
+  border-bottom-color: #334155;
+}
+
+[data-theme="dark"] .lrn-subject-row:hover {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+[data-theme="dark"] .lrn-stream-pill {
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .lrn-stream-pill.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .lrn-paper-chip {
+  background: #273449;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .lrn-ml-assistant {
+  background: #1e293b;
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+[data-theme="dark"] .lrn-ml-assistant-head h3 {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .lrn-ml-assistant-head p {
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .lrn-ml-form input {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .lrn-ml-response {
+  border-top-color: #334155;
+}
+
+[data-theme="dark"] .lrn-ml-related h4 {
+  color: #93c5fd;
+}
+
+@media (max-width: 640px) {
+  .lrn-row-progress {
+    display: none;
+  }
 }
 
 [data-theme="dark"] .lrn-search-box input,

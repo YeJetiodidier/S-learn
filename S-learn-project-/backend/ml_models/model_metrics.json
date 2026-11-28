@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "trained_at": "2026-11-28T02:38:01.194249+00:00",
+  "model_file": "/run/media/anosvoaldigoad/anime/disk d/projects/s-learn 2.1/S-learn-project-/backend/ml_models/slearn_exam_model.joblib",
+  "model_size_mb": 5.05,
+  "local_papers_indexed": 3,
+  "local_paper_subjects": {
+    "Chemistry": 3
+  },
+  "online_questions_indexed": 5642,
+  "dataset_subject_counts": {
+    "Accounting": 279,
+    "Biology": 874,
+    "Chemistry": 637,
+    "Citizenship Education": 190,
+    "Commerce": 359,
+    "Computer Science": 100,
+    "Economics": 393,
+    "English Language": 220,
+    "Food and Nutrition": 156,
+    "Geography": 224,
+    "Geology": 176,
+    "History": 364,
+    "Information and Communication Technology (ICT)": 100,
+    "Literature in English": 150,
+    "Logic": 250,
+    "Mathematics": 664,
+    "Physics": 237,
+    "Pure Mathematics with Mechanics": 99,
+    "Religious Studies": 170
+  },
+  "subject_years": {
+    "Chemistry": [
+      2009,
+      2025
+    ]
+  },
+  "classifier_evaluation": {
+    "train_samples": 4513,
+    "test_samples": 1129,
+    "accuracy": 0.8069,
+    "macro_f1": 0.78,
+    "weighted_f1": 0.8059,
+    "per_subject_f1": {
+      "Accounting": 0.8889,
+      "Biology": 0.8138,
+      "Chemistry": 0.7004,
+      "Citizenship Education": 0.9737,
+      "Commerce": 0.84,
+      "Computer Science": 0.7222,
+      "Economics": 0.9383,
+      "English Language": 1.0,
+      "Food and Nutrition": 0.7368,
+      "Geography": 0.6667,
+      "Geology": 0.6329,
+      "History": 0.9733,
+      "Information and Communication Technology (ICT)": 0.8205,
+      "Literature in English": 0.7458,
+      "Logic": 0.9899,
+      "Mathematics": 0.7687,
+      "Physics": 0.6852,
+      "Pure Mathematics with Mechanics": 0.1026,
+      "Religious Studies": 0.8197
+    }
+  }
+}

@@ -1,7 +1,13 @@
-import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import StatusBanner from "../components/StatusBanner";
+import {
+  ACADEMIC_LEVELS,
+  GCE_STREAMS,
+  getAllGceSubjects,
+  inferStreamForSubject,
+} from "../data/syllabusCatalog";
 import { getFriendlyErrorMessage } from "../utils/friendlyError";
 import {
   getPapers,
@@ -17,12 +23,15 @@ import "../dashboard.css";
 import "../App.css";
 
 function SmartSubjects() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [level, setLevel] = useState("");
+  const [stream, setStream] = useState("All");
   const [subject, setSubject] = useState(() => searchParams.get("subject") || "");
   const [paper, setPaper] = useState("");
   const [year, setYear] = useState("");
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get("search") || "");
+  const [showDirectory, setShowDirectory] = useState(true);
 
   const [allPapers, setAllPapers] = useState([]);
   const [pendingPapers, setPendingPapers] = useState([]);
@@ -265,17 +274,36 @@ function SmartSubjects() {
   };
 
 
-  // Dynamic options
-  const dynamicLevels = [...new Set(allPapers.map((p) => p.level))].filter(
-    Boolean,
-  );
-  const dynamicSubjects = [
-    ...new Set(
-      allPapers
-        .filter((p) => !level || p.level === level)
-        .map((p) => p.subject),
-    ),
+  // Recognized Cameroon GCE Board subjects across O-Level & A-Level (Science, Arts, Commercial)
+  const gceCatalog = useMemo(() => getAllGceSubjects(), []);
+
+  // Dynamic options (merged with official GCE Board levels & subjects)
+  const dynamicLevels = [
+    ...new Set([
+      ...ACADEMIC_LEVELS.map((l) => l.id),
+      ...allPapers.map((p) => p.level),
+    ]),
   ].filter(Boolean);
+
+  const dynamicSubjects = [
+    ...new Set([
+      ...gceCatalog
+        .filter(
+          (item) =>
+            (!level || item.level.toLowerCase() === level.toLowerCase()) &&
+            (stream === "All" || item.stream === stream),
+        )
+        .map((item) => item.name),
+      ...allPapers
+        .filter(
+          (p) =>
+            (!level || p.level === level) &&
+            (stream === "All" || inferStreamForSubject(p.subject) === stream),
+        )
+        .map((p) => p.subject),
+    ]),
+  ].filter(Boolean);
+
   const dynamicPapers = [
     ...new Set(
       allPapers
@@ -294,19 +322,34 @@ function SmartSubjects() {
   // Results Filter
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const filteredPapers = allPapers.filter((p) => {
+    const paperStream = inferStreamForSubject(p.subject);
     const matchesKeyword =
       !normalizedQuery ||
-      `${p.subject || ""} ${p.paper_name || ""} ${p.level || ""} ${p.year || ""} ${p.specialty || ""}`
+      `${p.subject || ""} ${p.paper_name || ""} ${p.level || ""} ${p.year || ""} ${p.specialty || ""} ${paperStream}`
         .toLowerCase()
         .includes(normalizedQuery);
     return (
       matchesKeyword &&
       (!level || p.level === level) &&
+      (stream === "All" || paperStream === stream) &&
       (!subject || p.subject === subject) &&
       (!paper || p.paper_name === paper) &&
       (!year || p.year === year)
     );
   });
+
+  const filteredGceSubjects = useMemo(() => {
+    return gceCatalog.filter((item) => {
+      if (level && item.level.toLowerCase() !== level.toLowerCase()) return false;
+      if (stream !== "All" && item.stream !== stream) return false;
+      if (subject && item.name.toLowerCase() !== subject.toLowerCase()) return false;
+      if (normalizedQuery) {
+        const hay = `${item.name} ${item.code} ${item.level} ${item.stream} ${(item.papers || []).join(" ")}`.toLowerCase();
+        if (!hay.includes(normalizedQuery)) return false;
+      }
+      return true;
+    });
+  }, [gceCatalog, level, stream, subject, normalizedQuery]);
 
   const normalizePaperLink = (rawLink) => {
     if (!rawLink) return "";
@@ -459,7 +502,7 @@ function SmartSubjects() {
                   background: "linear-gradient(to right, #ffffff, #f8faff)",
                 }}
               >
-                <div className="ss-filter-search-wrap" style={{ marginBottom: "16px" }}>
+                <div className="ss-filter-search-wrap" style={{ marginBottom: "12px" }}>
                   <input
                     type="text"
                     className="db-search"
@@ -469,10 +512,45 @@ function SmartSubjects() {
                       borderRadius: "10px",
                       width: "100%",
                     }}
-                    placeholder="Search papers by subject, title, level, or year..."
+                    placeholder="Search GCE subjects, codes (0505, 0715...), papers, or year..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
+                </div>
+                <div
+                  role="tablist"
+                  aria-label="Filter by GCE stream"
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "8px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  {GCE_STREAMS.map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={stream === st.id}
+                      onClick={() => {
+                        setStream(st.id);
+                        setSubject("");
+                      }}
+                      style={{
+                        padding: "6px 14px",
+                        borderRadius: "999px",
+                        border: stream === st.id ? "1px solid #4f46e5" : "1px solid #cbd5e1",
+                        background: stream === st.id ? "#4f46e5" : "white",
+                        color: stream === st.id ? "white" : "#475569",
+                        fontSize: "0.82rem",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
                 </div>
                 <div
                   className="ss-filter-grid"
@@ -619,11 +697,172 @@ function SmartSubjects() {
               </div>
             </section>
 
-            {/* RESULTS GRID */}
+            {/* GCE BOARD RECOGNIZED SUBJECTS — LIST VIEW */}
+            <section className="db-section">
+              <div className="db-section-header">
+                <h2 className="db-section-title" style={{ color: "#1d4ed8" }}>
+                  GCE Board Subjects ({filteredGceSubjects.length})
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowDirectory((v) => !v)}
+                  style={{
+                    border: "1px solid #cbd5e1",
+                    background: "white",
+                    color: "#475569",
+                    borderRadius: "10px",
+                    padding: "6px 12px",
+                    fontSize: "0.82rem",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                  }}
+                >
+                  {showDirectory ? "Hide List" : "Show List"}
+                </button>
+              </div>
+
+              {showDirectory && (
+                <div
+                  role="list"
+                  style={{
+                    background: "white",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "16px",
+                    overflow: "hidden",
+                  }}
+                >
+                  {filteredGceSubjects.map((item) => {
+                    const matchedPaperCount = allPapers.filter(
+                      (p) =>
+                        String(p.subject || "").toLowerCase() === item.name.toLowerCase() &&
+                        (!p.level ||
+                          String(p.level).toLowerCase().includes(item.level.toLowerCase().replace("-level", ""))),
+                    ).length;
+
+                    return (
+                      <div
+                        key={item.id}
+                        role="listitem"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "14px",
+                          padding: "13px 18px",
+                          borderBottom: "1px solid #eef2f6",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: "220px" }}>
+                          <span
+                            style={{
+                              width: "38px",
+                              height: "38px",
+                              borderRadius: "10px",
+                              background: `${item.accent}1a`,
+                              color: item.accent,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: "1.15rem",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {item.icon}
+                          </span>
+                          <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                              <strong style={{ fontSize: "0.96rem", color: "#0f172a" }}>{item.name}</strong>
+                              <span style={{ fontSize: "0.72rem", fontWeight: "700", padding: "2px 7px", borderRadius: "6px", background: "#f1f5f9", color: "#475569" }}>
+                                {item.code}
+                              </span>
+                              <span style={{ fontSize: "0.72rem", fontWeight: "700", padding: "2px 8px", borderRadius: "999px", background: "#eff6ff", color: "#1d4ed8" }}>
+                                {item.level}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "0.72rem",
+                                  fontWeight: "700",
+                                  padding: "2px 8px",
+                                  borderRadius: "999px",
+                                  background:
+                                    item.stream === "Science"
+                                      ? "#e0f2fe"
+                                      : item.stream === "Arts"
+                                        ? "#f3e8ff"
+                                        : "#dcfce7",
+                                  color:
+                                    item.stream === "Science"
+                                      ? "#0369a1"
+                                      : item.stream === "Arts"
+                                        ? "#7e22ce"
+                                        : "#15803d",
+                                }}
+                              >
+                                {item.stream}
+                              </span>
+                            </div>
+                            <p style={{ margin: "2px 0 0", fontSize: "0.8rem", color: "#64748b" }}>
+                              {item.papers.join(" · ")}
+                              {matchedPaperCount > 0 ? ` · ${matchedPaperCount} PDF${matchedPaperCount === 1 ? "" : "s"} uploaded` : ""}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate("/learn", {
+                                state: { level: item.level, subject: item.name, stream: item.stream },
+                              })
+                            }
+                            style={{
+                              padding: "7px 12px",
+                              fontSize: "0.8rem",
+                              fontWeight: "600",
+                              background: "#eff6ff",
+                              color: "#1d4ed8",
+                              border: "1px solid #dbeafe",
+                              borderRadius: "8px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            📖 Notes
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate("/exam", {
+                                state: { level: item.level, subject: item.name, stream: item.stream },
+                              })
+                            }
+                            style={{
+                              padding: "7px 12px",
+                              fontSize: "0.8rem",
+                              fontWeight: "600",
+                              background: "#f8fafc",
+                              color: "#334155",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: "8px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            🎓 Practice
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {/* UPLOADED PAPERS — COMPACT LIST VIEW */}
             <section className="db-section">
               <div className="db-section-header">
                 <h2 className="db-section-title" style={{ color: "#4f46e5" }}>
-                  Available papers ({filteredPapers.length})
+                  Uploaded Past Papers ({filteredPapers.length})
                 </h2>
                 {isLoading && (
                   <span className="db-stat-label">Updating from vault...</span>
@@ -634,7 +873,7 @@ function SmartSubjects() {
                 <div
                   style={{
                     textAlign: "center",
-                    padding: "60px",
+                    padding: "48px",
                     color: "#94a3b8",
                   }}
                 >
@@ -643,56 +882,52 @@ function SmartSubjects() {
               ) : filteredPapers.length > 0 ? (
                 <div
                   className="db-subject-list"
+                  role="list"
                   style={{
                     display: "flex",
                     flexDirection: "column",
-                    gap: "16px",
+                    background: "white",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "16px",
+                    overflow: "hidden",
                   }}
                 >
-                  {filteredPapers.map((p, i) => (
+                  {filteredPapers.map((p, i) => {
+                    const paperStream = inferStreamForSubject(p.subject);
+                    return (
                     <div
-                      key={i}
+                      key={p.id || i}
+                      role="listitem"
                       className="db-list-item"
                       style={{
-                        background: "white",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "16px",
-                        transition: "all 0.3s ease",
-                        padding: "20px 24px",
+                        background: "transparent",
+                        borderBottom: i === filteredPapers.length - 1 ? "none" : "1px solid #eef2f6",
+                        padding: "14px 18px",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        gap: "20px",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = "translateY(-4px)";
-                        e.currentTarget.style.boxShadow =
-                          "0 10px 25px rgba(79, 70, 229, 0.08)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = "translateY(0)";
-                        e.currentTarget.style.boxShadow = "none";
+                        gap: "16px",
+                        flexWrap: "wrap",
                       }}
                     >
-                      {/* LEFT SECTION: Icon + Info */}
                       <div
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          gap: "20px",
+                          gap: "14px",
                           flex: 1,
+                          minWidth: "220px",
                         }}
                       >
                         <div
                           className="db-avatar ss-paper-icon"
                           style={{
-                            fontSize: "1.5rem",
-                            borderRadius: "16px",
-                            background:
-                              "linear-gradient(135deg, #4f46e5, #818cf8)",
+                            fontSize: "1.15rem",
+                            borderRadius: "10px",
+                            background: "linear-gradient(135deg, #4f46e5, #818cf8)",
                             color: "white",
-                            width: "56px",
-                            height: "56px",
+                            width: "40px",
+                            height: "40px",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
@@ -707,13 +942,14 @@ function SmartSubjects() {
                             style={{
                               display: "flex",
                               alignItems: "center",
-                              gap: "12px",
-                              marginBottom: "4px",
+                              gap: "8px",
+                              flexWrap: "wrap",
+                              marginBottom: "2px",
                             }}
                           >
                             <h3
                               style={{
-                                fontSize: "1.1rem",
+                                fontSize: "0.98rem",
                                 color: "#1e293b",
                                 margin: 0,
                               }}
@@ -722,48 +958,68 @@ function SmartSubjects() {
                             </h3>
                             <span
                               style={{
-                                background:
-                                  "linear-gradient(90deg, #f1f5f9, #e2e8f0)",
-                                padding: "4px 10px",
-                                borderRadius: "100px",
-                                fontSize: "0.7rem",
+                                background: "#f1f5f9",
+                                padding: "2px 8px",
+                                borderRadius: "999px",
+                                fontSize: "0.72rem",
                                 fontWeight: "700",
                                 color: "#475569",
                               }}
                             >
                               {p.level}
                             </span>
+                            <span
+                              style={{
+                                background:
+                                  paperStream === "Science"
+                                    ? "#e0f2fe"
+                                    : paperStream === "Arts"
+                                      ? "#f3e8ff"
+                                      : "#dcfce7",
+                                color:
+                                  paperStream === "Science"
+                                    ? "#0369a1"
+                                    : paperStream === "Arts"
+                                      ? "#7e22ce"
+                                      : "#15803d",
+                                padding: "2px 8px",
+                                borderRadius: "999px",
+                                fontSize: "0.72rem",
+                                fontWeight: "700",
+                              }}
+                            >
+                              {paperStream}
+                            </span>
                           </div>
                           <p
                             style={{
                               color: "#64748b",
+                              fontSize: "0.84rem",
                               fontWeight: "500",
                               margin: 0,
                             }}
                           >
-                            {p.paper_name} • {p.year}
+                            {p.paper_name} · {p.year}
                           </p>
                         </div>
                       </div>
 
-                      {/* RIGHT SECTION: ACTION BUTTONS */}
                       <div
                         style={{
                           display: "flex",
-                          gap: "12px",
+                          gap: "8px",
                           flexShrink: 0,
                         }}
                       >
                         <button
                           style={{
-                            padding: "10px 20px",
-                            fontSize: "0.85rem",
+                            padding: "8px 14px",
+                            fontSize: "0.82rem",
                             fontWeight: "600",
                             background: "#f1f5f9",
                             color: "#475569",
                             border: "1px solid #e2e8f0",
-                            borderRadius: "10px",
-                            transition: "all 0.2s",
+                            borderRadius: "8px",
                             cursor: "pointer",
                           }}
                           onClick={() => {
@@ -774,12 +1030,6 @@ function SmartSubjects() {
                               setFeedback({ type: "error", message: "No link is available for this paper." });
                             }
                           }}
-                          onMouseEnter={(e) =>
-                            (e.currentTarget.style.background = "#e2e8f0")
-                          }
-                          onMouseLeave={(e) =>
-                            (e.currentTarget.style.background = "#f1f5f9")
-                          }
                         >
                           View
                         </button>
@@ -789,29 +1039,21 @@ function SmartSubjects() {
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            padding: "10px 20px",
-                            fontSize: "0.85rem",
+                            padding: "8px 14px",
+                            fontSize: "0.82rem",
                             fontWeight: "600",
-                            background:
-                              "linear-gradient(135deg, #0ea5e9, #22d3ee)",
+                            background: "linear-gradient(135deg, #0ea5e9, #22d3ee)",
                             color: "white",
                             border: "none",
-                            borderRadius: "10px",
+                            borderRadius: "8px",
                             cursor: "pointer",
-                            transition: "opacity 0.2s",
                           }}
-                          onMouseEnter={(e) =>
-                            (e.currentTarget.style.opacity = "0.9")
-                          }
-                          onMouseLeave={(e) =>
-                            (e.currentTarget.style.opacity = "1")
-                          }
                         >
                           Download 📥
                         </button>
                       </div>
                     </div>
-                  ))}
+                  );})}
                 </div>
               ) : (
                 <div
@@ -1126,32 +1368,44 @@ function SmartSubjects() {
             >
               <input
                 type="text"
+                list="ss-gce-levels"
                 className="db-search"
                 style={{
                   border: "1.5px solid #e2e8f0",
                   padding: "12px",
                   borderRadius: "10px",
                 }}
-                placeholder="Academic Level (e.g. A-Level, AS)"
+                placeholder="Academic Level (O-Level or A-Level)"
                 value={newPaper.level}
                 onChange={(e) =>
                   setNewPaper({ ...newPaper, level: e.target.value })
                 }
               />
+              <datalist id="ss-gce-levels">
+                {ACADEMIC_LEVELS.map((l) => (
+                  <option key={l.id} value={l.id} />
+                ))}
+              </datalist>
               <input
                 type="text"
+                list="ss-gce-subjects"
                 className="db-search"
                 style={{
                   border: "1.5px solid #e2e8f0",
                   padding: "12px",
                   borderRadius: "10px",
                 }}
-                placeholder="Subject (e.g. Pure Mathematics)"
+                placeholder="Subject (e.g. Accounting, Chemistry, Philosophy...)"
                 value={newPaper.subject}
                 onChange={(e) =>
                   setNewPaper({ ...newPaper, subject: e.target.value })
                 }
               />
+              <datalist id="ss-gce-subjects">
+                {[...new Set(gceCatalog.map((item) => item.name))].sort().map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
               <input
                 type="text"
                 className="db-search"

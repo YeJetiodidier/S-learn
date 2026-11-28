@@ -73,3 +73,9 @@ node_modules/
 
 # Vercel
 .vercel
+
+# Python virtual environments & caches
+.venv/
+.venv-ml/
+__pycache__/
+*.pyc

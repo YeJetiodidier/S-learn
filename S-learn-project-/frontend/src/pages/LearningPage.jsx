@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import StatusBanner from "../components/StatusBanner";
 import ExamModeModal from "../components/ExamModeModal";
-import { ACADEMIC_LEVELS, getSubjectsForLevel } from "../data/syllabusCatalog";
+import { ACADEMIC_LEVELS, GCE_STREAMS, getSubjectsForLevel } from "../data/syllabusCatalog";
 import { backendRequest } from "../firebase/apiClient";
 import { getFriendlyErrorMessage } from "../utils/friendlyError";
 import "../dashboard.css";
@@ -42,6 +42,7 @@ function LearningPage() {
   const initialSubjectName = location.state?.subject || "";
 
   const [level, setLevel] = useState(initialLevel);
+  const [stream, setStream] = useState(location.state?.stream || "All");
   const [searchQuery, setSearchQuery] = useState("");
   const [notesCache, setNotesCache] = useState(() => loadNotesCache());
   const [selectedSubjectId, setSelectedSubjectId] = useState(() => {
@@ -60,21 +61,29 @@ function LearningPage() {
   const [error, setError] = useState("");
   const [modeModalOpen, setModeModalOpen] = useState(false);
 
-  // Custom topic generator state (when a student wants notes for any topic)
+  // Custom topic generator state
   const [customOpen, setCustomOpen] = useState(false);
   const [customSubject, setCustomSubject] = useState("");
   const [customTopic, setCustomTopic] = useState("");
 
-  const subjectsForLevel = useMemo(() => getSubjectsForLevel(level), [level]);
+  // Trained ML Study Assistant state
+  const [assistQuery, setAssistQuery] = useState("");
+  const [assistLoading, setAssistLoading] = useState(false);
+  const [assistResult, setAssistResult] = useState(null);
+  const [revealedAssistAnswers, setRevealedAssistAnswers] = useState({});
+
+  const subjectsForLevel = useMemo(() => getSubjectsForLevel(level, "All"), [level]);
 
   const filteredSubjects = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return subjectsForLevel;
-    return subjectsForLevel.filter(
-      (s) =>
+    return subjectsForLevel.filter((s) => {
+      if (stream !== "All" && s.stream !== stream) return false;
+      if (!q) return true;
+      return (
         s.name.toLowerCase().includes(q) ||
-        s.category.toLowerCase().includes(q) ||
+        s.stream.toLowerCase().includes(q) ||
         s.code.toLowerCase().includes(q) ||
+        (s.papers || []).some((p) => p.toLowerCase().includes(q)) ||
         s.modules.some((m) =>
           m.sections.some((sec) =>
             sec.topics.some(
@@ -83,9 +92,10 @@ function LearningPage() {
                 t.concepts.some((c) => c.toLowerCase().includes(q)),
             ),
           ),
-        ),
-    );
-  }, [subjectsForLevel, searchQuery]);
+        )
+      );
+    });
+  }, [subjectsForLevel, stream, searchQuery]);
 
   const selectedSubject = useMemo(
     () => subjectsForLevel.find((s) => s.id === selectedSubjectId) || null,
@@ -113,6 +123,7 @@ function LearningPage() {
     setSelectedSubjectId(null);
     setActiveNotesKey(null);
     setActiveTopicMeta(null);
+    setAssistResult(null);
     setError("");
   };
 
@@ -189,6 +200,155 @@ function LearningPage() {
       { forceRegenerate: true },
     );
     setCustomOpen(false);
+  };
+
+  const handleAskMlAssistant = async (event, overrideQuery = null) => {
+    if (event) event.preventDefault();
+    const q = String(overrideQuery !== null ? overrideQuery : assistQuery).trim();
+    if (!q) return;
+    setError("");
+    setAssistLoading(true);
+    setRevealedAssistAnswers({});
+    try {
+      const data = await backendRequest("/api/exam/ml-assist", {
+        method: "POST",
+        body: {
+          level,
+          subject: selectedSubject?.name || activeTopicMeta?.subjectName || "",
+          topic: activeTopicMeta?.topic?.title || "",
+          query: q,
+        },
+      });
+      setAssistResult(data);
+    } catch (err) {
+      console.error(err);
+      setError(
+        getFriendlyErrorMessage(err, "We couldn't reach the ML Study Assistant right now."),
+      );
+    } finally {
+      setAssistLoading(false);
+    }
+  };
+
+  const renderMlAssistantPanel = (contextSubject, contextTopic = "") => {
+    const quickPrompts = contextTopic
+      ? [
+          `Explain ${contextTopic} simply`,
+          `Common GCE exam questions on ${contextTopic}`,
+          `Key definitions to memorize for ${contextTopic}`,
+        ]
+      : [
+          `Key exam concepts in ${contextSubject}`,
+          `How to score an A in ${level} ${contextSubject}`,
+          `Important definitions in ${contextSubject}`,
+        ];
+
+    return (
+      <section className="lrn-ml-assistant">
+        <div className="lrn-ml-assistant-head">
+          <div>
+            <span className="lrn-badge-blue">🤖 Trained ML Study Assistant</span>
+            <h3>Ask the S-Learn ML Tutor</h3>
+            <p>
+              Ask any question about {contextTopic || contextSubject || `${level} GCE subjects`} —
+              powered by our trained GCE exam model (5,642+ questions across Science, Arts &amp; Commercial).
+            </p>
+          </div>
+        </div>
+
+        <form className="lrn-ml-form" onSubmit={handleAskMlAssistant}>
+          <input
+            type="text"
+            value={assistQuery}
+            onChange={(e) => setAssistQuery(e.target.value)}
+            placeholder={`Ask about ${contextTopic || contextSubject || "any GCE topic"}...`}
+          />
+          <button type="submit" className="lrn-generate-btn" disabled={assistLoading}>
+            <SparkleSvg />
+            <span>{assistLoading ? "Thinking…" : "Ask ML Tutor"}</span>
+          </button>
+        </form>
+
+        <div className="lrn-ml-quick-chips">
+          {quickPrompts.map((promptText, idx) => (
+            <button
+              key={idx}
+              type="button"
+              className="lrn-concept-chip lrn-chip-btn"
+              disabled={assistLoading}
+              onClick={() => {
+                setAssistQuery(promptText);
+                handleAskMlAssistant(null, promptText);
+              }}
+            >
+              {promptText}
+            </button>
+          ))}
+        </div>
+
+        {assistResult && (
+          <div className="lrn-ml-response" aria-live="polite">
+            <div className="lrn-ml-response-meta">
+              <span className="lrn-badge-blue">{assistResult.engine}</span>
+              <span className="lrn-badge-soft">
+                Detected Subject: {assistResult.predictedSubject}
+              </span>
+            </div>
+
+            <p className="lrn-lesson-prose">{assistResult.answer}</p>
+
+            {assistResult.keyTakeaways?.length > 0 && (
+              <ul className="lrn-lesson-bullets">
+                {assistResult.keyTakeaways.map((pt, i) => (
+                  <li key={i}>{pt}</li>
+                ))}
+              </ul>
+            )}
+
+            {assistResult.examTip && (
+              <div className="lrn-example-box">
+                <strong>GCE Exam Tip</strong>
+                <p>{assistResult.examTip}</p>
+              </div>
+            )}
+
+            {assistResult.relatedQuestions?.length > 0 && (
+              <div className="lrn-ml-related">
+                <h4>Matched Practice Questions from Trained ML Model</h4>
+                <div className="lrn-check-list">
+                  {assistResult.relatedQuestions.slice(0, 3).map((rq, idx) => {
+                    const isShown = Boolean(revealedAssistAnswers[idx]);
+                    return (
+                      <div key={rq.id || idx} className="lrn-check-card">
+                        <p className="lrn-check-q">
+                          <strong>Q{idx + 1}.</strong> {rq.question_text}
+                        </p>
+                        {isShown ? (
+                          <div className="lrn-check-a">
+                            <strong>Answer:</strong> {rq.answer}
+                            {rq.explanation && <p style={{ marginTop: "4px" }}>{rq.explanation}</p>}
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="lrn-reveal-btn"
+                            onClick={() =>
+                              setRevealedAssistAnswers((prev) => ({ ...prev, [idx]: true }))
+                            }
+                          >
+                            Reveal Model Answer
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+    );
   };
 
   return (
@@ -332,10 +492,51 @@ function LearningPage() {
                 </section>
               )}
 
+              {activeNotes.mlRelatedQuestions?.length > 0 && (
+                <section className="lrn-notes-block">
+                  <h2 className="lrn-block-heading">
+                    🤖 Trained ML Model Practice Questions
+                  </h2>
+                  <div className="lrn-check-list">
+                    {activeNotes.mlRelatedQuestions.slice(0, 3).map((item, idx) => {
+                      const key = `ml-${idx}`;
+                      const shown = Boolean(revealedChecks[key]);
+                      return (
+                        <div key={item.id || idx} className="lrn-check-card">
+                          <p className="lrn-check-q">
+                            <strong>GCE Practice {idx + 1}.</strong> {item.question_text}
+                          </p>
+                          {shown ? (
+                            <div className="lrn-check-a">
+                              <strong>Answer:</strong> {item.answer}
+                              {item.explanation && (
+                                <p style={{ marginTop: "4px" }}>{item.explanation}</p>
+                              )}
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="lrn-reveal-btn"
+                              onClick={() =>
+                                setRevealedChecks((prev) => ({ ...prev, [key]: true }))
+                              }
+                            >
+                              Reveal Verified Answer
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {renderMlAssistantPanel(activeNotes.subject, activeNotes.topicTitle)}
+
               <footer className="lrn-next-actions">
                 <div>
                   <h3>Ready to test what you just learned?</h3>
-                  <p>Launch an exam mode pre-loaded with this topic.</p>
+                  <p>Launch a GCE Paper 1, Paper 2, Paper 3 simulation or fresh ML quiz on this topic.</p>
                 </div>
                 <div className="lrn-next-btns">
                   <button
@@ -362,39 +563,60 @@ function LearningPage() {
                           level: activeNotes.level,
                           subject: activeNotes.subject,
                           topic: activeNotes.topicTitle,
+                          paperType: "paper1",
                         },
                       })
                     }
                   >
-                    Pre-GCE Simulation
+                    Paper 1 (MCQ)
                   </button>
                   <button
                     type="button"
                     className="lrn-outline-btn"
                     onClick={() =>
-                      navigate("/exam/mark-answers", {
+                      navigate("/exam/pre-gce", {
                         state: {
                           level: activeNotes.level,
                           subject: activeNotes.subject,
                           topic: activeNotes.topicTitle,
+                          paperType: "paper2",
                         },
                       })
                     }
                   >
-                    Mark My Answers
+                    Paper 2 (Structured)
+                  </button>
+                  <button
+                    type="button"
+                    className="lrn-outline-btn"
+                    onClick={() =>
+                      navigate("/exam/pre-gce", {
+                        state: {
+                          level: activeNotes.level,
+                          subject: activeNotes.subject,
+                          topic: activeNotes.topicTitle,
+                          paperType: "paper3",
+                        },
+                      })
+                    }
+                  >
+                    Paper 3 (Practical)
                   </button>
                 </div>
               </footer>
             </article>
           </div>
         ) : selectedSubject ? (
-          /* ── VIEW 2: SUBJECT SYLLABUS VIEW (EXACT TEMPLATE FROM SCREENSHOT) ── */
+          /* ── VIEW 2: SUBJECT SYLLABUS VIEW ── */
           <div className="lrn-syllabus-wrap">
             <div className="lrn-top-bar">
               <button
                 type="button"
                 className="lrn-back-link"
-                onClick={() => setSelectedSubjectId(null)}
+                onClick={() => {
+                  setSelectedSubjectId(null);
+                  setAssistResult(null);
+                }}
               >
                 ‹ All subjects
               </button>
@@ -411,12 +633,39 @@ function LearningPage() {
               <div>
                 <h1 className="lrn-subject-title">{selectedSubject.name}</h1>
                 <p className="lrn-subject-meta">
-                  {level} · Code {selectedSubject.code} ·{" "}
+                  {level} · {selectedSubject.stream} · GCE Code {selectedSubject.code} ·{" "}
                   {(() => {
                     const { studied, total } = countTopicsInSubject(selectedSubject);
                     return `${studied} of ${total} topic${total === 1 ? "" : "s"} studied`;
                   })()}
                 </p>
+                {selectedSubject.papers?.length > 0 && (
+                  <div className="lrn-paper-tags">
+                    {selectedSubject.papers.map((paperLabel, idx) => {
+                      const pType = idx === 0 ? "paper1" : idx === 1 ? "paper2" : "paper3";
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          className="lrn-paper-chip lrn-paper-btn"
+                          title={`Launch ${paperLabel} GCE simulation`}
+                          onClick={() =>
+                            navigate("/exam/pre-gce", {
+                              state: {
+                                level,
+                                stream: selectedSubject.stream,
+                                subject: selectedSubject.name,
+                                paperType: pType,
+                              },
+                            })
+                          }
+                        >
+                          ✦ {paperLabel}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -544,17 +793,19 @@ function LearningPage() {
                 );
               })}
             </div>
+
+            {renderMlAssistantPanel(selectedSubject.name)}
           </div>
         ) : (
-          /* ── VIEW 1: SUBJECT SELECTION BY LEVEL ── */
+          /* ── VIEW 1: SUBJECT SELECTION LIST VIEW BY LEVEL & STREAM ── */
           <div className="lrn-catalog-wrap">
             <div className="lrn-catalog-header">
               <div>
-                <span className="lrn-badge-blue">Auto-Generated Syllabus Notes</span>
+                <span className="lrn-badge-blue">Auto-Generated Syllabus Notes · ML Tutor</span>
                 <h1 className="lrn-subject-title">Learning Center</h1>
                 <p className="lrn-subject-meta">
-                  Choose your academic level and subject to explore syllabus modules and
-                  generate comprehensive study notes automatically.
+                  Choose your academic level and GCE stream to browse official subjects in list
+                  view, generate structured notes, and get help from the trained ML tutor.
                 </p>
               </div>
               <button
@@ -588,12 +839,34 @@ function LearningPage() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={`Search ${level} subjects or topics...`}
+                  placeholder={`Search ${level} subjects, GCE codes, or topics...`}
                 />
               </div>
             </div>
 
-            <div className="lrn-subjects-grid">
+            <div className="lrn-stream-bar" role="tablist" aria-label="GCE stream filter">
+              {GCE_STREAMS.map((st) => {
+                const countInStream =
+                  st.id === "All"
+                    ? subjectsForLevel.length
+                    : subjectsForLevel.filter((s) => s.stream === st.id).length;
+                return (
+                  <button
+                    key={st.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={stream === st.id}
+                    className={`lrn-stream-pill${stream === st.id ? " active" : ""}`}
+                    onClick={() => setStream(st.id)}
+                  >
+                    <span>{st.label}</span>
+                    <span className="lrn-stream-count">{countInStream}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="lrn-subjects-list" role="list">
               {filteredSubjects.map((subj) => {
                 const { studied, total } = countTopicsInSubject(subj);
                 const pct = total > 0 ? Math.round((studied / total) * 100) : 0;
@@ -601,34 +874,46 @@ function LearningPage() {
                   <button
                     key={subj.id}
                     type="button"
-                    className="lrn-subject-card"
-                    onClick={() => setSelectedSubjectId(subj.id)}
+                    role="listitem"
+                    className="lrn-subject-row"
+                    onClick={() => {
+                      setSelectedSubjectId(subj.id);
+                      setAssistResult(null);
+                    }}
                   >
-                    <div className="lrn-subject-card-top">
-                      <span
-                        className="lrn-subject-icon"
-                        style={{ background: `${subj.accent}1a`, color: subj.accent }}
-                      >
-                        {subj.icon}
-                      </span>
-                      <span className="lrn-code-pill">Code {subj.code}</span>
-                    </div>
-                    <h2 className="lrn-subject-card-title">{subj.name}</h2>
-                    <p className="lrn-subject-card-sub">
-                      {subj.category} · {subj.modules.length} module
-                      {subj.modules.length === 1 ? "" : "s"} · {total} topic
-                      {total === 1 ? "" : "s"}
-                    </p>
-                    <div className="lrn-card-progress">
-                      <div className="lrn-card-progress-bar">
-                        <div
-                          className="lrn-card-progress-fill"
-                          style={{ width: `${pct}%`, background: subj.accent }}
-                        />
+                    <span
+                      className="lrn-subject-icon"
+                      style={{ background: `${subj.accent}1a`, color: subj.accent }}
+                    >
+                      {subj.icon}
+                    </span>
+                    <div className="lrn-subject-row-main">
+                      <div className="lrn-subject-row-title-line">
+                        <h2 className="lrn-subject-card-title">{subj.name}</h2>
+                        <span className="lrn-code-pill">{subj.code}</span>
+                        <span className={`lrn-stream-badge stream-${subj.stream.toLowerCase()}`}>
+                          {subj.stream}
+                        </span>
                       </div>
-                      <span>
-                        {studied}/{total} studied
-                      </span>
+                      <p className="lrn-subject-card-sub">
+                        {subj.papers?.join(" · ")} · {subj.modules.length} module
+                        {subj.modules.length === 1 ? "" : "s"} · {total} topic
+                        {total === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                    <div className="lrn-row-right">
+                      <div className="lrn-row-progress">
+                        <div className="lrn-card-progress-bar">
+                          <div
+                            className="lrn-card-progress-fill"
+                            style={{ width: `${pct}%`, background: subj.accent }}
+                          />
+                        </div>
+                        <span>
+                          {studied}/{total}
+                        </span>
+                      </div>
+                      <span className="lrn-row-chevron" aria-hidden="true">›</span>
                     </div>
                   </button>
                 );
@@ -647,6 +932,8 @@ function LearningPage() {
                 </button>
               </div>
             )}
+
+            {renderMlAssistantPanel(`${level} GCE`)}
 
             <section className="lrn-custom-card">
               <div className="lrn-custom-head">

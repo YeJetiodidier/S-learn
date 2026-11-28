@@ -8,6 +8,7 @@ import {
   generatePreGceSimulation,
   generateFreshQuiz,
   generateTopicNotes,
+  assistStudentLearning,
 } from "../services/examEngineService.js";
 import { requireDatabase, requireFirebaseUser } from "./appData.js";
 
@@ -131,19 +132,22 @@ router.post("/mark-answers", async (req, res) => {
   }
 });
 
-// POST /api/exam/pre-gce (generate realistic GCE simulation paper)
+// POST /api/exam/pre-gce (generate realistic GCE Paper 1, Paper 2, or Paper 3 simulation)
 router.post("/pre-gce", async (req, res) => {
   const { level, subject, paperType, topic, count, durationMinutes, papers } = req.body || {};
   if (!subject) {
     return res.status(400).json({ error: "Subject is required." });
   }
+  const normalizedPaperType = ["paper1", "paper2", "paper3"].includes(paperType)
+    ? paperType
+    : "paper1";
   try {
     const result = await generatePreGceSimulation({
       level: level || "O-Level",
       subject,
-      paperType: paperType === "paper2" ? "paper2" : "paper1",
+      paperType: normalizedPaperType,
       topic: topic || "Full Syllabus",
-      count: Number(count) || 10,
+      count: Number(count) || (normalizedPaperType === "paper1" ? 10 : 4),
       durationMinutes: Number(durationMinutes) || 30,
       papers: Array.isArray(papers) ? papers.slice(0, 30) : [],
     });
@@ -196,6 +200,26 @@ router.post("/generate-notes", async (req, res) => {
   } catch (err) {
     console.error("Generate notes error:", err);
     res.status(500).json({ error: "Failed to generate topic notes." });
+  }
+});
+
+// POST /api/exam/ml-assist (Learning page trained ML Study Assistant)
+router.post("/ml-assist", async (req, res) => {
+  const { level, subject, topic, query } = req.body || {};
+  if (!query || !String(query).trim()) {
+    return res.status(400).json({ error: "Please enter a question or topic to ask the assistant." });
+  }
+  try {
+    const result = await assistStudentLearning({
+      level: level || "O-Level",
+      subject: subject || "",
+      topic: topic || "",
+      query: String(query).trim(),
+    });
+    res.json(result);
+  } catch (err) {
+    console.error("ML assist error:", err);
+    res.status(500).json({ error: err.message || "Failed to get study assistance." });
   }
 });
 

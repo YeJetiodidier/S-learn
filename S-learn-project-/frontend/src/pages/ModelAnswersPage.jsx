@@ -4,7 +4,7 @@ import Sidebar from "../components/Sidebar";
 import StatusBanner from "../components/StatusBanner";
 import ExamModeModal from "../components/ExamModeModal";
 import { RobotIcon } from "../components/ExamModeIcons";
-import { ACADEMIC_LEVELS, getSubjectsForLevel } from "../data/syllabusCatalog";
+import { ACADEMIC_LEVELS, GCE_STREAMS, getSubjectsForLevel } from "../data/syllabusCatalog";
 import { backendFormRequest } from "../firebase/apiClient";
 import { getPapers } from "../firebase/dataService";
 import { getFriendlyErrorMessage } from "../utils/friendlyError";
@@ -17,7 +17,8 @@ function ModelAnswersPage() {
   const fileInputRef = useRef(null);
 
   const [level, setLevel] = useState(location.state?.level || "O-Level");
-  const levelSubjects = getSubjectsForLevel(level);
+  const [stream, setStream] = useState(location.state?.stream || "All");
+  const levelSubjects = getSubjectsForLevel(level, stream);
   const [subject, setSubject] = useState(
     location.state?.subject || levelSubjects[0]?.name || "Accounting",
   );
@@ -47,7 +48,15 @@ function ModelAnswersPage() {
 
   const handleLevelChange = (nextLevel) => {
     setLevel(nextLevel);
-    const nextList = getSubjectsForLevel(nextLevel);
+    const nextList = getSubjectsForLevel(nextLevel, stream);
+    if (!nextList.some((s) => s.name === subject)) {
+      setSubject(nextList[0]?.name || "");
+    }
+  };
+
+  const handleStreamChange = (nextStream) => {
+    setStream(nextStream);
+    const nextList = getSubjectsForLevel(level, nextStream);
     if (!nextList.some((s) => s.name === subject)) {
       setSubject(nextList[0]?.name || "");
     }
@@ -200,18 +209,27 @@ function ModelAnswersPage() {
 
           <div className="pe-form-grid">
             <label className="pe-field">
-              <span>Subject</span>
+              <span>GCE Stream</span>
+              <select value={stream} onChange={(e) => handleStreamChange(e.target.value)}>
+                {GCE_STREAMS.map((st) => (
+                  <option key={st.id} value={st.id}>{st.label}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="pe-field">
+              <span>Subject ({levelSubjects.length} GCE subjects)</span>
               <input
                 type="text"
                 list="ma-subjects"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                placeholder="e.g. Accounting, Chemistry, Physics"
+                placeholder="e.g. Accounting, Chemistry, Philosophy"
                 required
               />
               <datalist id="ma-subjects">
                 {levelSubjects.map((s) => (
-                  <option key={s.id} value={s.name} />
+                  <option key={s.id} value={s.name}>{s.code} · {s.stream}</option>
                 ))}
               </datalist>
             </label>

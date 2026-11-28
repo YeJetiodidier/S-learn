@@ -6,6 +6,7 @@ import ExamModeModal from "../components/ExamModeModal";
 import { MarkAnswersIcon } from "../components/ExamModeIcons";
 import {
   ACADEMIC_LEVELS,
+  GCE_STREAMS,
   getSubjectsForLevel,
   getTopicsForSubject,
 } from "../data/syllabusCatalog";
@@ -20,7 +21,8 @@ function MarkAnswersPage() {
   const location = useLocation();
 
   const [level, setLevel] = useState(location.state?.level || "O-Level");
-  const levelSubjects = getSubjectsForLevel(level);
+  const [stream, setStream] = useState(location.state?.stream || "All");
+  const levelSubjects = getSubjectsForLevel(level, stream);
   const [subject, setSubject] = useState(
     location.state?.subject || levelSubjects[0]?.name || "Accounting",
   );
@@ -44,10 +46,19 @@ function MarkAnswersPage() {
 
   const handleLevelChange = (nextLevel) => {
     setLevel(nextLevel);
-    const nextSubjects = getSubjectsForLevel(nextLevel);
+    const nextSubjects = getSubjectsForLevel(nextLevel, stream);
     const nextSubject = nextSubjects[0]?.name || "";
     setSubject(nextSubject);
     const nextTopics = getTopicsForSubject(nextLevel, nextSubject);
+    setTopic(nextTopics[0]?.title || "");
+  };
+
+  const handleStreamChange = (nextStream) => {
+    setStream(nextStream);
+    const nextSubjects = getSubjectsForLevel(level, nextStream);
+    const nextSubject = nextSubjects[0]?.name || "";
+    setSubject(nextSubject);
+    const nextTopics = getTopicsForSubject(level, nextSubject);
     setTopic(nextTopics[0]?.title || "");
   };
 
@@ -244,7 +255,16 @@ function MarkAnswersPage() {
 
           <div className="pe-form-grid">
             <label className="pe-field">
-              <span>Subject</span>
+              <span>GCE Stream</span>
+              <select value={stream} onChange={(e) => handleStreamChange(e.target.value)}>
+                {GCE_STREAMS.map((st) => (
+                  <option key={st.id} value={st.id}>{st.label}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="pe-field">
+              <span>Subject ({levelSubjects.length})</span>
               <input
                 type="text"
                 list="mark-subjects"
@@ -254,7 +274,7 @@ function MarkAnswersPage() {
               />
               <datalist id="mark-subjects">
                 {levelSubjects.map((s) => (
-                  <option key={s.id} value={s.name} />
+                  <option key={s.id} value={s.name}>{s.code} · {s.stream}</option>
                 ))}
               </datalist>
             </label>

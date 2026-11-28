@@ -6,6 +6,7 @@ import ExamModeModal from "../components/ExamModeModal";
 import { SparklesIcon } from "../components/ExamModeIcons";
 import {
   ACADEMIC_LEVELS,
+  GCE_STREAMS,
   getSubjectsForLevel,
   getTopicsForSubject,
 } from "../data/syllabusCatalog";
@@ -36,15 +37,21 @@ function PreGcePage() {
   const location = useLocation();
 
   const [level, setLevel] = useState(location.state?.level || "O-Level");
-  const levelSubjects = getSubjectsForLevel(level);
+  const [stream, setStream] = useState(location.state?.stream || "All");
+  const levelSubjects = getSubjectsForLevel(level, stream);
   const [subject, setSubject] = useState(
     location.state?.subject || levelSubjects[0]?.name || "Chemistry",
   );
   const availableTopics = getTopicsForSubject(level, subject);
   const [topic, setTopic] = useState(location.state?.topic || "Full Syllabus");
-  const [paperType, setPaperType] = useState("paper1"); // "paper1" | "paper2"
-  const [count, setCount] = useState(10);
-  const [durationMinutes, setDurationMinutes] = useState(20);
+  const initialPaperType = ["paper1", "paper2", "paper3"].includes(location.state?.paperType)
+    ? location.state.paperType
+    : "paper1";
+  const [paperType, setPaperType] = useState(initialPaperType); // "paper1" | "paper2" | "paper3"
+  const [count, setCount] = useState(initialPaperType === "paper1" ? 10 : 4);
+  const [durationMinutes, setDurationMinutes] = useState(
+    initialPaperType === "paper3" ? 45 : initialPaperType === "paper2" ? 30 : 20,
+  );
 
   const [phase, setPhase] = useState("setup"); // "setup" | "running" | "summary"
   const [simulation, setSimulation] = useState(null);
@@ -62,7 +69,14 @@ function PreGcePage() {
 
   const handleLevelChange = (nextLevel) => {
     setLevel(nextLevel);
-    const nextList = getSubjectsForLevel(nextLevel);
+    const nextList = getSubjectsForLevel(nextLevel, stream);
+    setSubject(nextList[0]?.name || "");
+    setTopic("Full Syllabus");
+  };
+
+  const handleStreamChange = (nextStream) => {
+    setStream(nextStream);
+    const nextList = getSubjectsForLevel(level, nextStream);
     setSubject(nextList[0]?.name || "");
     setTopic("Full Syllabus");
   };
@@ -74,8 +88,8 @@ function PreGcePage() {
 
   const handlePaperTypeChange = (nextType) => {
     setPaperType(nextType);
-    setCount(nextType === "paper2" ? 4 : 10);
-    setDurationMinutes(nextType === "paper2" ? 30 : 20);
+    setCount(nextType === "paper1" ? 10 : nextType === "paper3" ? 3 : 4);
+    setDurationMinutes(nextType === "paper3" ? 45 : nextType === "paper2" ? 30 : 20);
   };
 
   const handleFinishSimulation = useCallback(async () => {
@@ -138,7 +152,7 @@ function PreGcePage() {
           },
         });
         setSummary({
-          paperType: "paper2",
+          paperType: simulation.paperType,
           score: marked.totalScore,
           total: marked.totalMax,
           percentage: marked.percentage,
@@ -152,7 +166,9 @@ function PreGcePage() {
         if (marked.totalMax > 0) {
           recordExamProgress({
             subject: simulation.subject,
-            topic: simulation.topic || "Pre-GCE Paper 2",
+            topic:
+              simulation.topic ||
+              (simulation.paperType === "paper3" ? "Pre-GCE Paper 3" : "Pre-GCE Paper 2"),
             score: marked.totalScore,
             total: marked.totalMax,
           }).catch(() => {});
@@ -264,11 +280,12 @@ function PreGcePage() {
                 <SparklesIcon />
               </span>
               <div>
-                <span className="pe-mode-pill">Exam Mode · Real-Time Simulation</span>
+                <span className="pe-mode-pill">Exam Mode · Trained ML Model · Paper 1, 2 &amp; 3</span>
                 <h1 className="pe-page-title">Pre-GCE Question Generator</h1>
                 <p className="pe-hero-sub">
-                  Experience authentic timed GCE Paper 1 (MCQ) or Paper 2 (Structured)
-                  simulations with question navigator, review flags, and instant grade reports.
+                  Generate authentic Cameroon GCE Paper 1 (MCQ), Paper 2 (Structured/Essay),
+                  and Paper 3 (Practical / Applied / Case Study) simulations powered by S-Learn&apos;s
+                  trained ML exam model.
                 </p>
               </div>
             </div>
@@ -301,8 +318,8 @@ function PreGcePage() {
                 className={`pe-format-card${paperType === "paper1" ? " active" : ""}`}
                 onClick={() => handlePaperTypeChange("paper1")}
               >
-                <strong>Paper 1 · Multiple Choice</strong>
-                <span>Timed MCQ simulation with instant score &amp; explanations</span>
+                <strong>Paper 1 · Multiple Choice (MCQ)</strong>
+                <span>Timed GCE objective questions drawn from our trained ML corpus</span>
               </button>
               <button
                 type="button"
@@ -310,13 +327,30 @@ function PreGcePage() {
                 onClick={() => handlePaperTypeChange("paper2")}
               >
                 <strong>Paper 2 · Structured / Essay</strong>
-                <span>Written structured paper graded automatically by AI Examiner</span>
+                <span>Written structured exam questions with automatic examiner marking</span>
+              </button>
+              <button
+                type="button"
+                className={`pe-format-card${paperType === "paper3" ? " active" : ""}`}
+                onClick={() => handlePaperTypeChange("paper3")}
+              >
+                <strong>Paper 3 · Practical / Applied</strong>
+                <span>Lab practicals, coding tasks, financial case studies, or critical analysis</span>
               </button>
             </div>
 
             <div className="pe-form-grid">
               <label className="pe-field">
-                <span>Subject</span>
+                <span>GCE Stream</span>
+                <select value={stream} onChange={(e) => handleStreamChange(e.target.value)}>
+                  {GCE_STREAMS.map((st) => (
+                    <option key={st.id} value={st.id}>{st.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="pe-field">
+                <span>Subject ({levelSubjects.length})</span>
                 <input
                   type="text"
                   list="gce-subjects"
@@ -326,7 +360,7 @@ function PreGcePage() {
                 />
                 <datalist id="gce-subjects">
                   {levelSubjects.map((s) => (
-                    <option key={s.id} value={s.name} />
+                    <option key={s.id} value={s.name}>{s.code} · {s.stream}</option>
                   ))}
                 </datalist>
               </label>
@@ -357,6 +391,12 @@ function PreGcePage() {
                       <option value={10}>10 Questions (Mini Paper)</option>
                       <option value={15}>15 Questions (Standard)</option>
                       <option value={20}>20 Questions (Full Mock)</option>
+                    </>
+                  ) : paperType === "paper3" ? (
+                    <>
+                      <option value={2}>2 Practical / Case Tasks</option>
+                      <option value={3}>3 Practical / Case Tasks</option>
+                      <option value={4}>4 Practical / Case Tasks</option>
                     </>
                   ) : (
                     <>
@@ -396,7 +436,12 @@ function PreGcePage() {
           <section className="pe-sim-shell">
             <div className="pe-sim-topbar">
               <div>
-                <span className="pe-mode-pill">{simulation.paperCode}</span>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                  <span className="pe-mode-pill">{simulation.paperCode}</span>
+                  {simulation.engine && (
+                    <span className="pe-topic-chip">🤖 {simulation.engine}</span>
+                  )}
+                </div>
                 <h2>
                   {simulation.subject} — {simulation.topic}
                 </h2>

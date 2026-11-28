@@ -1,6 +1,7 @@
-// Unified AI + structured fallback engine for S-Learn Exam Modes & Learning Notes.
+// Unified Trained-ML + AI + structured fallback engine for S-Learn Exam Modes & Learning Notes.
 import { randomUUID } from "crypto";
 import { generateExam } from "./examService.js";
+import { generateWithLocalML, assistWithLocalML } from "./mlExamService.js";
 
 const parseJsonSafe = (raw) => {
   if (!raw) return null;
@@ -250,6 +251,29 @@ export const generateMarkingQuestions = async ({
   count = 3,
 }) => {
   const safeCount = Math.min(6, Math.max(1, Number(count) || 3));
+
+  // 1. Ground with our trained ML model first
+  const mlItems = await generateWithLocalML({
+    level,
+    subject,
+    topic,
+    paperType: "paper2",
+    count: safeCount,
+  });
+
+  if (mlItems.length >= safeCount && mlItems.meta?.subjectMatched) {
+    return {
+      source: "ml",
+      engine: "Trained ML Model",
+      questions: mlItems.slice(0, safeCount).map((q, idx) => ({
+        id: q.id || `mq-ml-${Date.now()}-${idx}`,
+        question: q.question_text,
+        marks: q.marks || 6,
+        hint: q.keyPoints?.[0] || "State the syllabus principle clearly and include a worked example.",
+      })),
+    };
+  }
+
   const systemPrompt =
     "You are a Cameroon GCE examiner creating short-answer and structured exam questions for students to answer and have marked. Return strictly valid JSON.";
 
@@ -481,7 +505,7 @@ Return valid JSON in this exact shape:
 };
 
 /* ─────────────────────────────────────────────────────────────────────────── *
- * 3. PRE-GCE QUESTION GENERATOR (Real-time Simulation)
+ * 3. PRE-GCE QUESTION GENERATOR (Paper 1 MCQ, Paper 2 Structured, Paper 3 Practical/Case)
  * ─────────────────────────────────────────────────────────────────────────── */
 export const generatePreGceSimulation = async ({
   level = "O-Level",
@@ -492,31 +516,73 @@ export const generatePreGceSimulation = async ({
   durationMinutes = 30,
   papers = [],
 }) => {
-  const isStructured = paperType === "paper2";
-  const safeCount = isStructured
+  const safePaperType = ["paper1", "paper2", "paper3"].includes(paperType)
+    ? paperType
+    : "paper1";
+  const isWritten = safePaperType === "paper2" || safePaperType === "paper3";
+  const paperLabel =
+    safePaperType === "paper1"
+      ? "Paper 1 (MCQ)"
+      : safePaperType === "paper2"
+        ? "Paper 2 (Structured / Essay)"
+        : "Paper 3 (Practical / Applied)";
+
+  const safeCount = isWritten
     ? Math.min(10, Math.max(2, Number(count) || 4))
     : Math.min(30, Math.max(5, Number(count) || 10));
 
-  const systemPrompt =
-    "You are a Cameroon GCE Board examination setter. Create authentic, rigorous, syllabus-accurate GCE simulation questions with clear phrasing, balanced distractors, and concise examiner explanations. Return strictly valid JSON.";
+  // 1. Query the trained ML model (slearn_exam_model.joblib) FIRST
+  const mlQuestions = await generateWithLocalML({
+    level,
+    subject,
+    topic: topic || "Full Syllabus",
+    paperType: safePaperType,
+    count: safeCount,
+  });
 
-  const userPrompt = isStructured
+  if (mlQuestions.length >= safeCount && mlQuestions.meta?.subjectMatched) {
+    return {
+      source: "ml",
+      engine: "Trained ML Model",
+      level,
+      subject,
+      topic: topic || "Full Syllabus",
+      paperType: safePaperType,
+      paperCode: `${level} · ${paperLabel}`,
+      instructions:
+        safePaperType === "paper1"
+          ? "Answer ALL questions. Select the single best option A, B, C, or D."
+          : safePaperType === "paper2"
+            ? "Answer ALL structured questions clearly, showing all working and syllabus definitions."
+            : "Paper 3 Practical / Applied Assessment: Answer every section thoroughly with procedures, workings, or critical evaluation.",
+      durationMinutes: Number(durationMinutes) || 30,
+      paperKeywords: mlQuestions.meta?.paperKeywords || [],
+      questions: mlQuestions.slice(0, safeCount),
+    };
+  }
+
+  // 2. Fall back to OpenAI/Gemini (grounded with any ML keywords/samples) for subjects not yet in ML corpus
+  const systemPrompt =
+    "You are a Cameroon GCE Board examination setter. Create authentic, rigorous, syllabus-accurate GCE simulation questions for Paper 1 (MCQ), Paper 2 (Structured/Essay), or Paper 3 (Practical/Case Study/Applied). Return strictly valid JSON.";
+
+  const userPrompt = isWritten
     ? `
-Create a realistic ${level} GCE Paper 2 (Structured / Essay) simulation for:
+Create a realistic ${level} Cameroon GCE ${paperLabel} simulation for:
 - Subject: ${subject}
 - Focus: ${topic || "Full Syllabus"}
 - Number of Questions: ${safeCount}
+${safePaperType === "paper3" ? "- Make every question an authentic GCE Paper 3 task (practical laboratory design/data analysis for Sciences, coding/SQL practical for CS/ICT, applied financial case study for Commercial, or unseen text/document critical analysis for Arts)." : ""}
 
 Return valid JSON:
 {
-  "paperCode": "e.g. 0515 / Paper 2",
+  "paperCode": "e.g. ${level} · ${paperLabel}",
   "instructions": "Authentic GCE exam instruction line",
   "questions": [
     {
-      "id": "p2-1",
+      "id": "${safePaperType}-1",
       "topicTag": "Specific syllabus topic",
-      "question_text": "Full GCE structured question (may include parts a and b)",
-      "marks": 6,
+      "question_text": "Full GCE question (may include parts a, b, c)",
+      "marks": ${safePaperType === "paper3" ? 10 : 6},
       "modelAnswer": "Complete exam-standard marking scheme answer",
       "keyPoints": ["Key point 1", "Key point 2", "Key point 3"]
     }
@@ -524,14 +590,14 @@ Return valid JSON:
 }
 `.trim()
     : `
-Create a realistic ${level} GCE Paper 1 (Multiple Choice) simulation for:
+Create a realistic ${level} Cameroon GCE Paper 1 (Multiple Choice) simulation for:
 - Subject: ${subject}
 - Focus: ${topic || "Full Syllabus"}
 - Number of Questions: ${safeCount}
 
 Return valid JSON:
 {
-  "paperCode": "e.g. 0515 / Paper 1",
+  "paperCode": "e.g. ${level} · Paper 1",
   "instructions": "Answer ALL questions. Choose the single best option A, B, C, or D.",
   "questions": [
     {
@@ -551,13 +617,13 @@ Return valid JSON:
     if (ai && Array.isArray(ai.questions) && ai.questions.length > 0) {
       const normalized = ai.questions
         .slice(0, safeCount)
-        .map((q, idx) => {
-          if (isStructured) {
+        .map((q) => {
+          if (isWritten) {
             return {
-              id: q.id || `gce-p2-${randomUUID()}`,
+              id: q.id || `gce-${safePaperType}-${randomUUID()}`,
               topicTag: String(q.topicTag || topic || subject),
               question_text: String(q.question_text || q.question || ""),
-              marks: Math.min(20, Math.max(2, Number(q.marks) || 5)),
+              marks: Math.min(20, Math.max(2, Number(q.marks) || (safePaperType === "paper3" ? 10 : 6))),
               modelAnswer: String(q.modelAnswer || ""),
               keyPoints: Array.isArray(q.keyPoints) ? q.keyPoints.map(String) : [],
             };
@@ -573,20 +639,21 @@ Return valid JSON:
             explanation: String(q.explanation || ""),
           };
         })
-        .filter((q) => q.question_text && (isStructured || q.options.length >= 2));
+        .filter((q) => q.question_text && (isWritten || q.options.length >= 2));
 
       if (normalized.length > 0) {
         return {
           source: "ai",
+          engine: mlQuestions.length > 0 ? "ML + AI Hybrid" : "AI GCE Setter",
           level,
           subject,
           topic: topic || "Full Syllabus",
-          paperType,
-          paperCode: String(ai.paperCode || `${level} · ${paperType === "paper2" ? "Paper 2" : "Paper 1"}`),
+          paperType: safePaperType,
+          paperCode: String(ai.paperCode || `${level} · ${paperLabel}`),
           instructions: String(
             ai.instructions ||
-              (isStructured
-                ? "Answer all structured questions clearly, showing all working where necessary."
+              (isWritten
+                ? "Answer all questions clearly, showing all working and analysis."
                 : "Select the single best answer for each question before time expires."),
           ),
           durationMinutes: Number(durationMinutes) || 30,
@@ -595,30 +662,52 @@ Return valid JSON:
       }
     }
   } catch (err) {
-    console.warn("Pre-GCE AI generation failed, falling back to examService:", err.message);
+    console.warn("Pre-GCE AI generation failed, falling back:", err.message);
   }
 
-  if (isStructured) {
+  // 3. If ML returned partial/cross-subject questions, use them cleanly before generic fallback
+  if (mlQuestions.length > 0) {
+    return {
+      source: "ml",
+      engine: "Trained ML Model",
+      level,
+      subject,
+      topic: topic || "Full Syllabus",
+      paperType: safePaperType,
+      paperCode: `${level} · ${paperLabel}`,
+      instructions: isWritten
+        ? "Answer all questions clearly, showing all working and analysis."
+        : "Answer ALL questions. Select the single best option.",
+      durationMinutes: Number(durationMinutes) || 30,
+      questions: mlQuestions,
+    };
+  }
+
+  if (isWritten) {
     const questions = Array.from({ length: safeCount }, (_, idx) => ({
-      id: `gce-p2-fb-${idx + 1}`,
+      id: `gce-${safePaperType}-fb-${idx + 1}`,
       topicTag: topic || subject,
-      question_text: `Question ${idx + 1}: In ${level} ${subject} (${topic || "core syllabus"}), state the main principle involved and explain its application using a worked example.`,
-      marks: 5,
-      modelAnswer: `State the standard ${level} definition accurately, explain the underlying mechanism or rule, and illustrate with a concrete syllabus example.`,
+      question_text:
+        safePaperType === "paper3"
+          ? `Practical / Applied Task ${idx + 1}: Design a step-by-step ${level} ${subject} practical or case analysis for ${topic || "the core syllabus"}, including methodology, data/evidence, and evaluation.`
+          : `Question ${idx + 1}: In ${level} ${subject} (${topic || "core syllabus"}), state the main principle involved and explain its application using a worked example.`,
+      marks: safePaperType === "paper3" ? 10 : 6,
+      modelAnswer: `State the standard ${level} definition accurately, explain the underlying mechanism or procedure, and illustrate with a concrete syllabus example.`,
       keyPoints: [
-        "Accurate definition (1 mark)",
-        "Clear explanation of principle (2 marks)",
-        "Relevant syllabus example or working (2 marks)",
+        "Accurate syllabus principle/definition (2 marks)",
+        "Clear step-by-step methodology or analysis (4 marks)",
+        "Worked example, evaluation, or conclusion (2–4 marks)",
       ],
     }));
     return {
       source: "fallback",
+      engine: "Syllabus Engine",
       level,
       subject,
       topic: topic || "Full Syllabus",
-      paperType,
-      paperCode: `${level} · Paper 2`,
-      instructions: "Answer all structured questions clearly, showing all working.",
+      paperType: safePaperType,
+      paperCode: `${level} · ${paperLabel}`,
+      instructions: "Answer all questions clearly, showing all working.",
       durationMinutes: Number(durationMinutes) || 30,
       questions,
     };
@@ -633,10 +722,11 @@ Return valid JSON:
 
   return {
     source: "fallback",
+    engine: "Syllabus Engine",
     level,
     subject,
     topic: topic || "Full Syllabus",
-    paperType,
+    paperType: "paper1",
     paperCode: `${level} · Paper 1`,
     instructions: "Answer ALL questions. Select the single best option.",
     durationMinutes: Number(durationMinutes) || 30,
@@ -649,7 +739,7 @@ Return valid JSON:
 };
 
 /* ─────────────────────────────────────────────────────────────────────────── *
- * 4. QUIZ ENGINE (Fresh Syllabus Questions — Zero Repeats)
+ * 4. QUIZ ENGINE (Fresh Syllabus Questions — Powered by Trained ML Model + Zero Repeats)
  * ─────────────────────────────────────────────────────────────────────────── */
 export const generateFreshQuiz = async ({
   level = "O-Level",
@@ -664,7 +754,36 @@ export const generateFreshQuiz = async ({
   const excludedList = (Array.isArray(excludeQuestions) ? excludeQuestions : [])
     .map((q) => String(q).trim())
     .filter(Boolean)
-    .slice(-40);
+    .slice(-60);
+
+  // 1. Draw fresh, non-repeating questions straight from our trained ML model first
+  const mlQuiz = await generateWithLocalML({
+    level,
+    subject,
+    topic,
+    paperType: "paper1",
+    count: safeCount,
+    excludeQuestions: excludedList,
+  });
+
+  if (mlQuiz.length >= safeCount && mlQuiz.meta?.subjectMatched) {
+    return {
+      source: "ml",
+      engine: "Trained ML Model",
+      level,
+      subject,
+      topic,
+      difficulty,
+      quizTitle: `${subject}: ${topic} (ML Syllabus Quiz)`,
+      questions: mlQuiz.slice(0, safeCount).map((q) => ({
+        ...q,
+        concept: q.concept || q.topicTag || topic,
+        explanation:
+          q.explanation ||
+          `Verified ${level} ${subject} answer from S-Learn's trained GCE corpus (${q.source || "ML"}).`,
+      })),
+    };
+  }
 
   const seed = randomUUID().slice(0, 8);
   const systemPrompt =
@@ -758,8 +877,28 @@ export const generateTopicNotes = async ({
   const cleanConcepts = Array.isArray(concepts) ? concepts.map(String).filter(Boolean) : [];
   const cleanObjectives = Array.isArray(objectives) ? objectives.map(String).filter(Boolean) : [];
 
+  // Retrieve grounded exam references & past-paper keywords from our trained ML model
+  const mlContext = await assistWithLocalML({
+    level,
+    subject,
+    topic: topicTitle,
+    query: [topicTitle, ...cleanConcepts].join(" "),
+    count: 4,
+  });
+  const mlRelatedQuestions = Array.isArray(mlContext?.related_questions)
+    ? mlContext.related_questions
+    : [];
+  const mlKeywords = Array.isArray(mlContext?.paper_keywords) ? mlContext.paper_keywords : [];
+
   const systemPrompt =
     "You are an expert Cameroon GCE teacher and textbook author for S-Learn. Generate comprehensive, structured, student-friendly, exam-ready study notes that thoroughly cover every syllabus concept and learning objective. Return strictly valid JSON.";
+
+  const mlGroundingSnippet = mlRelatedQuestions.length
+    ? `\n- Real Exam Questions Retrieved from S-Learn's Trained ML Model (use these to keep notes exam-focused):\n${mlRelatedQuestions
+        .slice(0, 3)
+        .map((q, i) => `${i + 1}. ${q.question_text} (Answer: ${q.answer})`)
+        .join("\n")}`
+    : "";
 
   const userPrompt = `
 Generate complete, structured study notes for:
@@ -769,7 +908,7 @@ Generate complete, structured study notes for:
 - Topic: ${topicTitle}
 - Syllabus Concepts to Cover: ${cleanConcepts.length ? cleanConcepts.join(", ") : topicTitle}
 - Learning Objectives:
-${cleanObjectives.length ? cleanObjectives.map((o) => `- ${o}`).join("\n") : `- Understand and apply ${topicTitle} in ${level} ${subject}`}
+${cleanObjectives.length ? cleanObjectives.map((o) => `- ${o}`).join("\n") : `- Understand and apply ${topicTitle} in ${level} ${subject}`}${mlGroundingSnippet}
 
 Return valid JSON in this exact shape:
 {
@@ -833,6 +972,8 @@ Return valid JSON in this exact shape:
               answer: String(qc.answer || ""),
             }))
           : [],
+        mlKeywords,
+        mlRelatedQuestions,
       };
     }
   } catch (err) {
@@ -880,17 +1021,113 @@ Return valid JSON in this exact shape:
       "Follow up immediately with the Quiz Engine to test recall without notes.",
     ],
     quickCheck: [
+      ...mlRelatedQuestions.slice(0, 2).map((q) => ({
+        question: q.question_text,
+        answer: `${q.answer}${q.explanation ? ` — ${q.explanation}` : ""}`,
+      })),
       {
         question: `What are the key ideas covered under "${topicTitle}" in ${level} ${subject}?`,
         answer: cleanConcepts.length
           ? `The core syllabus concepts are: ${cleanConcepts.join(", ")}.`
           : `Core principles, definitions, and exam applications of ${topicTitle}.`,
       },
-      {
-        question: `How can you earn full marks on a structured question about ${topicTitle}?`,
-        answer:
-          "State accurate definitions first, present clear distinct points aligned with the command word, and include a relevant syllabus example or calculation.",
-      },
     ],
+    mlKeywords,
+    mlRelatedQuestions,
+  };
+};
+
+/* ─────────────────────────────────────────────────────────────────────────── *
+ * 6. LEARNING PAGE — ML STUDY ASSISTANT (Trained Classifier + TF-IDF Retrieval + Tutor)
+ * ─────────────────────────────────────────────────────────────────────────── */
+export const assistStudentLearning = async ({
+  level = "O-Level",
+  subject = "",
+  topic = "",
+  query = "",
+}) => {
+  const cleanQuery = String(query || "").trim();
+  if (!cleanQuery) {
+    throw new Error("Please enter a question or concept to get study assistance.");
+  }
+
+  const mlData = await assistWithLocalML({
+    level,
+    subject,
+    topic,
+    query: cleanQuery,
+    count: 4,
+  });
+
+  const predictedSubject = mlData?.predicted_subject || subject || "General";
+  const effectiveSubject = subject || predictedSubject;
+  const relatedQuestions = Array.isArray(mlData?.related_questions)
+    ? mlData.related_questions
+    : [];
+  const paperKeywords = Array.isArray(mlData?.paper_keywords) ? mlData.paper_keywords : [];
+
+  const systemPrompt =
+    "You are S-Learn's friendly Cameroon GCE Study Tutor powered by our trained ML exam model. Explain concepts clearly, step-by-step, using the retrieved exam corpus context. Return strictly valid JSON.";
+
+  const userPrompt = `
+Student Question (${level} · ${effectiveSubject}${topic ? ` · ${topic}` : ""}):
+"${cleanQuery}"
+
+Trained ML Model Classification: ${predictedSubject}
+Matched GCE Corpus Questions & Answers:
+${relatedQuestions
+  .map(
+    (item, idx) =>
+      `${idx + 1}. Q: ${item.question_text}\n   A: ${item.answer}${item.explanation ? `\n   Note: ${item.explanation}` : ""}`,
+  )
+  .join("\n")}
+
+Return valid JSON:
+{
+  "answer": "Clear, structured, student-friendly explanation directly answering the student's question (2-3 short paragraphs)",
+  "keyTakeaways": ["Key takeaway 1", "Key takeaway 2", "Key takeaway 3"],
+  "examTip": "One concise GCE exam tip tied to this concept"
+}
+`.trim();
+
+  try {
+    const ai = await callLLMJson({ systemPrompt, userPrompt, maxTokens: 1400 });
+    if (ai && ai.answer) {
+      return {
+        engine: mlData ? "Trained ML Model + AI Tutor" : "AI Tutor",
+        level,
+        subject: effectiveSubject,
+        predictedSubject,
+        topic,
+        query: cleanQuery,
+        answer: String(ai.answer),
+        keyTakeaways: Array.isArray(ai.keyTakeaways) ? ai.keyTakeaways.map(String) : [],
+        examTip: String(ai.examTip || ""),
+        paperKeywords,
+        relatedQuestions,
+      };
+    }
+  } catch (err) {
+    console.warn("ML Study Assistant LLM synthesis failed, returning pure ML retrieval:", err.message);
+  }
+
+  // Pure Trained ML Model response when offline / LLM unavailable
+  const topMatch = relatedQuestions[0];
+  const synthesized = topMatch
+    ? `Based on S-Learn's trained ${effectiveSubject} model (${level}), the closest exam concept relates to: "${topMatch.question_text}"\n\nKey Exam Answer: ${topMatch.answer}.${topMatch.explanation ? `\n\nExplanation: ${topMatch.explanation}` : ""}`
+    : `Your question maps to ${predictedSubject} (${level}). Review the syllabus definitions and worked examples for ${topic || effectiveSubject}, then test your understanding using the practice questions below.`;
+
+  return {
+    engine: "Trained ML Model",
+    level,
+    subject: effectiveSubject,
+    predictedSubject,
+    topic,
+    query: cleanQuery,
+    answer: synthesized,
+    keyTakeaways: relatedQuestions.slice(0, 3).map((item) => `${item.answer} (${item.topic})`),
+    examTip: `Connect your answer to official ${level} ${effectiveSubject} marking keywords and check the related exam questions below.`,
+    paperKeywords,
+    relatedQuestions,
   };
 };
