@@ -4,6 +4,9 @@ import {
   detectInstallPlatform,
   isRunningStandalone,
   getManualInstallSteps,
+  hasStoredUserInstall,
+  setStoredUserInstall,
+  detectInstalledRelatedApp,
 } from "./installHelper.js";
 
 test("detects iOS, Android, and desktop user agents", () => {
@@ -56,4 +59,35 @@ test("returns tailored manual install instructions per platform", () => {
   assert.match(getManualInstallSteps("ios").heading, /iPhone/i);
   assert.match(getManualInstallSteps("android").heading, /Android/i);
   assert.ok(getManualInstallSteps("desktop").steps.length >= 2);
+});
+
+test("tracks installed phone shortcut state per user uid", () => {
+  const store = new Map();
+  const mockStorage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+  };
+
+  assert.equal(hasStoredUserInstall("user-1", mockStorage), false);
+  assert.equal(hasStoredUserInstall("user-2", mockStorage), false);
+
+  setStoredUserInstall("user-1", mockStorage);
+  assert.equal(hasStoredUserInstall("user-1", mockStorage), true);
+  assert.equal(hasStoredUserInstall("user-2", mockStorage), false);
+});
+
+test("detects installed related web apps safely", async () => {
+  assert.equal(await detectInstalledRelatedApp({}), false);
+  assert.equal(
+    await detectInstalledRelatedApp({
+      getInstalledRelatedApps: async () => [{ platform: "webapp" }],
+    }),
+    true,
+  );
+  assert.equal(
+    await detectInstalledRelatedApp({
+      getInstalledRelatedApps: async () => [],
+    }),
+    false,
+  );
 });

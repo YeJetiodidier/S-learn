@@ -22,6 +22,42 @@ export function isRunningStandalone({
   return false;
 }
 
+export function getUserInstalledStorageKey(uid) {
+  return uid ? `slearn_phone_app_installed_${uid}` : "";
+}
+
+export function hasStoredUserInstall(uid, storage = typeof localStorage !== "undefined" ? localStorage : null) {
+  const key = getUserInstalledStorageKey(uid);
+  if (!key || !storage) return false;
+  try {
+    return storage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setStoredUserInstall(uid, storage = typeof localStorage !== "undefined" ? localStorage : null) {
+  const key = getUserInstalledStorageKey(uid);
+  if (!key || !storage) return;
+  try {
+    storage.setItem(key, "1");
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export async function detectInstalledRelatedApp(
+  nav = typeof navigator !== "undefined" ? navigator : null,
+) {
+  if (!nav || typeof nav.getInstalledRelatedApps !== "function") return false;
+  try {
+    const related = await nav.getInstalledRelatedApps();
+    return Array.isArray(related) && related.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 export function getManualInstallSteps(platform) {
   if (platform === "ios") {
     return {

@@ -184,7 +184,7 @@ function StatChart({ studyProgress, lessons, onStartExam }) {
 
 function Dashboard() {
   const navigate = useNavigate();
-  const { isInstalled, canPromptInstall, promptInstall } = useInstallApp();
+  const { isInstalled, installCheckReady, canPromptInstall, promptInstall } = useInstallApp();
   const [installBannerDismissed, setInstallBannerDismissed] = useState(() => {
     try {
       return sessionStorage.getItem("slearn_install_banner_dismissed") === "1";
@@ -777,7 +777,7 @@ function Dashboard() {
           onDismiss={() => setBanner(null)}
         />
 
-        {!isInstalled && !installBannerDismissed && (
+        {installCheckReady && !isInstalled && !installBannerDismissed && (
           <div className="pwa-install-banner">
             <img src="/icons/icon-192.png" alt="S-Learn" className="pwa-install-banner-icon" />
             <div className="pwa-install-banner-text">

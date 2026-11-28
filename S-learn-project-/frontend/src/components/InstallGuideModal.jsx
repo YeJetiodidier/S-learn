@@ -3,7 +3,7 @@ import { useInstallApp } from "../context/installStore.js";
 import { getManualInstallSteps } from "../utils/installHelper.js";
 
 function InstallGuideModal() {
-  const { showGuide, closeGuide, platform } = useInstallApp();
+  const { showGuide, closeGuide, markInstalled, platform } = useInstallApp();
 
   useEffect(() => {
     if (!showGuide) return;
@@ -45,9 +45,19 @@ function InstallGuideModal() {
           ))}
         </ol>
 
-        <button type="button" className="pwa-modal-close-btn" onClick={closeGuide}>
-          Got it
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <button type="button" className="pwa-modal-close-btn" onClick={markInstalled}>
+            I&apos;ve Already Installed It on My Phone
+          </button>
+          <button
+            type="button"
+            className="pwa-modal-close-btn"
+            style={{ background: "transparent", color: "inherit", border: "1px solid rgba(148, 163, 184, 0.4)" }}
+            onClick={closeGuide}
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
   );

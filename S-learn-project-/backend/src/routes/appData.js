@@ -105,6 +105,8 @@ const settingFields = {
   shareStats: "privacy_share_stats",
   favorite_cards: "favorite_cards",
   favoriteCards: "favorite_cards",
+  phone_app_installed: "phone_app_installed",
+  phoneAppInstalled: "phone_app_installed",
 };
 
 const profileProjection = `uid AS "uid", email, username, role, avatar_url, bio,
